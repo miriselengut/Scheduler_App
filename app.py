@@ -72,6 +72,17 @@ st.markdown(
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
+    .availability-day { text-align: center; font-weight: 700; padding: .45rem 0 .55rem; }
+    .st-key-add_availability_grid div.stButton > button { min-height: 2.65rem; }
+    .st-key-add_availability_grid div.stButton > button[kind="primary"] {
+        background: #3f5368; border-color: #3f5368; color: white;
+    }
+    .st-key-add_availability_grid div.stButton > button[kind="secondary"] {
+        background: #aebfce; border-color: #9eafbd; color: #1f3040;
+    }
+    .st-key-add_availability_grid div.stButton > button[kind="tertiary"] {
+        background: #f7f9fb; border: 1px solid #dce5ee; color: #6f7f91;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -146,6 +157,61 @@ def render_availability_editor(
                 slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
                 availability[slot_key] = preference
     return availability
+
+
+def render_add_availability_grid() -> dict[str, str]:
+    """Render the Add Client availability as color-coded, cycling buttons."""
+    state_key = "add_availability_values"
+    if state_key not in st.session_state:
+        st.session_state[state_key] = {
+            slot_key: PREFERENCE_UNAVAILABLE for slot_key in SLOT_BY_KEY
+        }
+
+    st.caption(
+        "Click a box to cycle through **Not available**, **Best time**, and **Also works**."
+    )
+    values = st.session_state[state_key]
+    cycle = {
+        PREFERENCE_UNAVAILABLE: "optimal",
+        "optimal": "secondary",
+        "secondary": PREFERENCE_UNAVAILABLE,
+    }
+    button_types = {
+        PREFERENCE_UNAVAILABLE: "tertiary",
+        "optimal": "primary",
+        "secondary": "secondary",
+    }
+
+    with st.container(key="add_availability_grid"):
+        header = st.columns([1.05, 1, 1, 1, 1, 1])
+        header[0].markdown('<div class="availability-day">Time</div>', unsafe_allow_html=True)
+        for index, day in enumerate(DAYS, start=1):
+            header[index].markdown(
+                f'<div class="availability-day">{day}</div>', unsafe_allow_html=True
+            )
+
+        for time_label in TIMES:
+            columns = st.columns([1.05, 1, 1, 1, 1, 1])
+            columns[0].markdown(
+                f'<div class="schedule-time">{time_label}</div>', unsafe_allow_html=True
+            )
+            for day_index, day in enumerate(DAYS, start=1):
+                slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
+                preference = values[slot_key]
+                if columns[day_index].button(
+                    PREFERENCE_LABELS[preference],
+                    key=f"add_slot_{slot_key}",
+                    type=button_types[preference],
+                    use_container_width=True,
+                ):
+                    values[slot_key] = cycle[preference]
+                    st.rerun()
+
+    return {
+        slot_key: preference
+        for slot_key, preference in values.items()
+        if preference != PREFERENCE_UNAVAILABLE
+    }
 
 
 def assignment_lookup(assignments: dict[int, list[dict]]) -> dict[str, dict]:
@@ -277,17 +343,17 @@ def add_client_page() -> None:
     st.title("Add Client")
     st.write("Enter the client information, then choose every time that can work.")
 
-    with st.form("add_client_form"):
-        c1, c2 = st.columns(2)
-        name = c1.text_input("Client name")
-        location = c2.text_input("Location")
-        sessions = c1.number_input(
-            "Sessions each week", min_value=1, max_value=5, value=1, step=1
-        )
-        notes = st.text_area("Notes", height=90)
-        st.subheader("Weekly availability")
-        availability = render_availability_editor(saved=None, key="add_availability")
-        submitted = st.form_submit_button("Save and find a time", type="primary")
+    c1, c2 = st.columns(2)
+    name = c1.text_input("Client name", key="add_client_name")
+    location = c2.text_input("Location", key="add_client_location")
+    sessions = c1.number_input(
+        "Sessions each week", min_value=1, max_value=5, value=1, step=1,
+        key="add_client_sessions",
+    )
+    notes = st.text_area("Notes", height=90, key="add_client_notes")
+    st.subheader("Weekly availability")
+    availability = render_add_availability_grid()
+    submitted = st.button("Save and find a time", type="primary")
 
     if submitted:
         try:
