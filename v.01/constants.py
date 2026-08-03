@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 
-APP_BUILD = "2026.08.03-v2"
-
 DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]
 DAY_CODES = {
     "Sunday": "SUN",
@@ -24,22 +22,9 @@ EVENING_TIMES = [
 ]
 TIMES = AFTERNOON_TIMES + EVENING_TIMES
 
-# Internal database values stay stable for safe upgrades from earlier versions.
-PREFERENCE_BEST = "optimal"
-PREFERENCE_ALSO_WORKS = "secondary"
+PREFERENCE_OPTIMAL = "optimal"
+PREFERENCE_SECONDARY = "secondary"
 PREFERENCE_UNAVAILABLE = "unavailable"
-
-PREFERENCE_LABELS = {
-    PREFERENCE_UNAVAILABLE: "Not available",
-    PREFERENCE_BEST: "Best time",
-    PREFERENCE_ALSO_WORKS: "Also works",
-}
-LABEL_TO_PREFERENCE = {label: value for value, label in PREFERENCE_LABELS.items()}
-AVAILABILITY_OPTIONS = [
-    PREFERENCE_LABELS[PREFERENCE_UNAVAILABLE],
-    PREFERENCE_LABELS[PREFERENCE_BEST],
-    PREFERENCE_LABELS[PREFERENCE_ALSO_WORKS],
-]
 
 
 @dataclass(frozen=True)

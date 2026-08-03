@@ -1,0 +1,23 @@
+# Database backups and temporary SQLite files
+scheduler_backup*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Editor and operating-system files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# secrets
+.streamlit/secrets.toml
+.env
+__pycache__/
+*.pyc
