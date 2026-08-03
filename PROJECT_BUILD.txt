@@ -1,0 +1,8 @@
+Kirah Weekly Client Scheduler
+Build: 2026.08.03-v2
+
+All Python files in this folder belong to the same build.
+Upload the entire project together. Do not mix these files with an older app.py,
+solver.py, constants.py, database.py, or scheduler_service.py.
+
+This complete edition includes scheduler.db with sample clients and appointments.
