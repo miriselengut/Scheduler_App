@@ -88,6 +88,7 @@ st.markdown(
         padding: 1rem; box-shadow: 0 5px 18px rgba(48, 73, 97, .06);
     }
     .muted { color: var(--muted); }
+    .schedule-day-heading { text-align: center; font-weight: 700; }
     .schedule-time { color: var(--muted); font-weight: 650; padding-top: .55rem; }
     .empty-slot { height: 2.65rem; border: 1px dashed #cfd9e2; border-radius: 9px;
         background: var(--gray-soft); }
@@ -132,17 +133,13 @@ st.markdown(
     .st-key-draft_actions, .st-key-draft_discard_section {
         width: 100%; max-width: 38rem; margin-inline: auto;
     }
-    div[class*="st-key-draft_request_"] {
-        background: var(--blue-soft); border-radius: 9px; padding: .35rem .55rem;
-        margin-bottom: .4rem;
-    }
-    div[class*="st-key-remove_change_"] button,
     .st-key-discard_entire_draft button,
     .st-key-confirm_discard_entire_draft button {
         background: var(--danger); border-color: var(--danger); color: white;
     }
     .st-key-draft_proposed div.stButton > button:disabled {
-        background: var(--panel); border-color: #b9cbd9; color: var(--ink); opacity: 1;
+        background: var(--panel); border-color: #b9cbd9; color: var(--ink);
+        box-shadow: 0 2px 5px rgba(48, 73, 97, .1); opacity: 1;
     }
     .st-key-draft_proposed div[class*="st-key-changed_schedule_slot_"] button:disabled {
         background: var(--blue-soft); border-color: #cbddeb; color: var(--blue-dark);
@@ -162,6 +159,10 @@ st.markdown(
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
     .availability-day { text-align: center; font-weight: 700; padding: .45rem 0 .55rem; }
+    .availability-intro { display: flex; align-items: baseline; flex-wrap: wrap;
+        gap: .35rem .75rem; margin: .8rem 0 .25rem; }
+    .availability-intro-title { color: var(--ink); font-size: .95rem; font-weight: 700; }
+    .availability-intro-note { color: var(--muted); font-size: .82rem; }
     .availability-legend { display: flex; flex-wrap: wrap; gap: .45rem 1rem;
         margin: .25rem 0 .7rem; color: var(--muted); font-size: .82rem; }
     .availability-legend span { display: inline-flex; align-items: center; gap: .35rem; }
@@ -273,9 +274,6 @@ def render_add_availability_grid() -> dict[str, str]:
             slot_key: PREFERENCE_UNAVAILABLE for slot_key in SLOT_BY_KEY
         }
 
-    st.caption(
-        "Click a box to cycle through **Not available**, **Best time**, and **Also works**."
-    )
     st.markdown(
         """
         <div class="availability-legend" aria-label="Availability colors">
@@ -355,7 +353,9 @@ def render_schedule_grid(
     header = st.columns([1.05, 1, 1, 1, 1, 1])
     header[0].markdown("**Time**")
     for index, day in enumerate(DAYS, start=1):
-        header[index].markdown(f"**{day}**")
+        header[index].markdown(
+            f'<div class="schedule-day-heading">{day}</div>', unsafe_allow_html=True
+        )
 
     for time_index, time_label in enumerate(TIMES):
         if time_label == EVENING_TIMES[0]:
@@ -446,7 +446,20 @@ def render_selected_client_details() -> None:
 
 
 def schedule_page() -> None:
-    st.title("Schedule")
+    heading, action = st.columns([3, 1.35], vertical_alignment="top")
+    heading.title("Schedule")
+    improve = action.button(
+        "Improve schedule", type="secondary", use_container_width=True
+    )
+    action.caption(
+        "May move appointments to reduce gaps. You’ll review changes before they apply."
+    )
+    if improve:
+        try:
+            show_result(service.request_improve_schedule(DB_PATH))
+        except Exception as exc:
+            st.error(str(exc))
+
     preferred = database.get_preferred_evenings(DB_PATH)
     st.caption(
         f"The scheduler tries to keep **{preferred[0]}** and **{preferred[1]}** evenings free."
@@ -459,18 +472,6 @@ def schedule_page() -> None:
         render_schedule_grid(assignments, key_prefix="approved", clickable=True)
     if st.session_state.get("selected_schedule_client_id"):
         render_selected_client_details()
-
-    st.divider()
-    st.subheader("Improve schedule")
-    st.write(
-        "This may move appointments to reduce gaps and keep more evenings free. "
-        "Nothing changes until you review and approve the draft."
-    )
-    if st.button("Improve schedule", type="secondary"):
-        try:
-            show_result(service.request_improve_schedule(DB_PATH))
-        except Exception as exc:
-            st.error(str(exc))
 
 
 def add_client_page() -> None:
@@ -486,9 +487,19 @@ def add_client_page() -> None:
         key="add_client_sessions",
     )
     notes = st.text_area("Notes", height=90, key="add_client_notes")
-    st.subheader("Weekly availability")
+    st.markdown(
+        """
+        <div class="availability-intro">
+            <span class="availability-intro-title">Weekly availability</span>
+            <span class="availability-intro-note">Click a box to cycle through
+                <strong>Not available</strong>, <strong>Best time</strong>, and
+                <strong>Also works</strong>.</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     availability = render_add_availability_grid()
-    submitted = st.button("Save and find a time", type="primary")
+    submitted = st.button("Save client and find a time", type="primary")
 
     if submitted:
         try:
@@ -667,59 +678,9 @@ def _format_slot_set(slot_keys: set[str]) -> str:
     return ", ".join(SLOT_KEY_TO_LABEL[key] for key in ordered)
 
 
-def _natural_list(values: list[str]) -> str:
-    if len(values) < 2:
-        return "".join(values)
-    if len(values) == 2:
-        return f"{values[0]} and {values[1]}"
-    return f"{', '.join(values[:-1])}, and {values[-1]}"
-
-
-def _draft_summary(
-    meta: dict,
-    changes: list[dict],
-    draft_assignments: dict[int, list[dict]],
-) -> str:
-    added_names = [
-        change.get("proposed_name") or change["current_name"]
-        for change in changes
-        if change["change_type"] == "add"
-    ]
-    additions = (
-        f"{_natural_list(added_names)} can be added"
-        if added_names
-        else "No new clients will be added"
-    )
-
-    moved_count = int(meta["moved_count"])
-    if moved_count == 0:
-        moves = "no appointments need to move"
-    elif moved_count == 1:
-        moves = "1 appointment must move"
-    else:
-        moves = f"{moved_count} appointments must move"
-
-    used_evenings = {
-        SLOT_BY_KEY[assignment["slot_key"]].day
-        for assignments in draft_assignments.values()
-        for assignment in assignments
-        if SLOT_BY_KEY[assignment["slot_key"]].block == "evening"
-    }
-    free_evenings = [day for day in DAYS if day not in used_evenings]
-    evenings = (
-        f"{_natural_list(free_evenings)} evening"
-        f"{'s' if len(free_evenings) != 1 else ''} will remain free"
-        if free_evenings
-        else "no evenings will remain free"
-    )
-
-    return f"{additions}, {moves}, and {evenings}."
-
-
 def draft_page() -> None:
     st.title("Review Changes")
     meta = database.get_draft_meta(DB_PATH)
-    changes = database.list_draft_changes(DB_PATH)
 
     if not meta:
         st.info("There are no draft changes. The approved schedule is unchanged.")
@@ -734,8 +695,6 @@ def draft_page() -> None:
         if current_by_slot.get(slot_key, {}).get("client_id")
         != assignment["client_id"]
     }
-    st.info(_draft_summary(meta, changes, draft_assignments))
-
     with st.container(key="draft_actions"):
         a1, a2 = st.columns(2)
         if a1.button("Approve", type="primary", use_container_width=True):
@@ -766,24 +725,6 @@ def draft_page() -> None:
             if c2.button("Keep draft"):
                 st.session_state.pop("confirm_discard_draft", None)
                 st.rerun()
-
-    if changes:
-        for change in changes:
-            proposed_name = change.get("proposed_name") or change["current_name"]
-            label = {
-                "add": f"Add {proposed_name}",
-                "edit": f"Edit {proposed_name}",
-                "delete": f"Delete {change['current_name']}",
-            }[change["change_type"]]
-            with st.container(key=f"draft_request_{change['id']}"):
-                c1, c2 = st.columns([5, 1])
-                c1.write(label)
-                if c2.button("Remove", key=f"remove_change_{change['id']}"):
-                    try:
-                        show_result(service.remove_draft_change(change["id"], DB_PATH))
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(str(exc))
 
     changes_frame = schedule_change_table()
     st.subheader("What will change")
