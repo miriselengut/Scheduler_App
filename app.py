@@ -30,8 +30,15 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-try:
+
+@st.cache_resource(show_spinner=False)
+def check_database_connection() -> None:
+    """Run the initial database connection check once per app process."""
     database.init_db(DB_PATH)
+
+
+try:
+    check_database_connection()
 except Exception:
     st.error("The scheduler could not connect to Supabase.")
     st.info("Check that SUPABASE_DB_URL is present in this app's Streamlit Secrets.")
@@ -174,11 +181,6 @@ def render_add_availability_grid() -> dict[str, str]:
         "Click a box to cycle through **Not available**, **Best time**, and **Also works**."
     )
     values = st.session_state[state_key]
-    cycle = {
-        PREFERENCE_UNAVAILABLE: "optimal",
-        "optimal": "secondary",
-        "secondary": PREFERENCE_UNAVAILABLE,
-    }
     button_types = {
         PREFERENCE_UNAVAILABLE: "tertiary",
         "optimal": "primary",
@@ -201,20 +203,31 @@ def render_add_availability_grid() -> dict[str, str]:
             for day_index, day in enumerate(DAYS, start=1):
                 slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
                 preference = values[slot_key]
-                if columns[day_index].button(
+                columns[day_index].button(
                     PREFERENCE_LABELS[preference],
                     key=f"add_slot_{slot_key}",
                     type=button_types[preference],
                     use_container_width=True,
-                ):
-                    values[slot_key] = cycle[preference]
-                    st.rerun()
+                    on_click=cycle_add_availability,
+                    args=(slot_key,),
+                )
 
     return {
         slot_key: preference
         for slot_key, preference in values.items()
         if preference != PREFERENCE_UNAVAILABLE
     }
+
+
+def cycle_add_availability(slot_key: str) -> None:
+    """Advance one Add Client availability button before Streamlit reruns."""
+    values = st.session_state["add_availability_values"]
+    cycle = {
+        PREFERENCE_UNAVAILABLE: "optimal",
+        "optimal": "secondary",
+        "secondary": PREFERENCE_UNAVAILABLE,
+    }
+    values[slot_key] = cycle[values[slot_key]]
 
 
 def assignment_lookup(assignments: dict[int, list[dict]]) -> dict[str, dict]:
