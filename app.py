@@ -286,6 +286,13 @@ def render_schedule_grid(
                 )
 
 
+def clear_selected_schedule_client() -> None:
+    st.session_state.pop("selected_schedule_client_id", None)
+
+
+@st.dialog(
+    "Client details", width="medium", on_dismiss=clear_selected_schedule_client
+)
 def render_selected_client_details() -> None:
     client_id = st.session_state.get("selected_schedule_client_id")
     if not client_id:
@@ -296,7 +303,6 @@ def render_selected_client_details() -> None:
         return
     assignments = database.get_current_assignments(DB_PATH).get(client_id, [])
 
-    st.divider()
     st.subheader(client["name"])
     left, right = st.columns([1.1, 1.9])
     with left:
