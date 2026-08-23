@@ -164,8 +164,13 @@ st.markdown(
     }
     div[class*="st-key-add_client_"] div[data-baseweb="input"],
     div[class*="st-key-add_client_"] div[data-baseweb="textarea"] {
-        background: var(--panel); border-color: #b9cbd9;
+        background: var(--panel) !important; border-color: #b9cbd9;
         box-shadow: 0 3px 8px rgba(48, 73, 97, .12);
+    }
+    div[class*="st-key-add_client_"] div[data-baseweb="base-input"],
+    div[class*="st-key-add_client_"] input,
+    div[class*="st-key-add_client_"] textarea {
+        background-color: var(--panel) !important;
     }
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
@@ -511,9 +516,9 @@ def add_client_page() -> None:
             <span class="availability-intro-title">Weekly availability</span>
             <span class="availability-intro-note">Click a box to cycle through:</span>
             <span class="availability-options" aria-label="Availability colors">
-                <span><i class="availability-swatch unavailable"></i>Not available</span>,
                 <span><i class="availability-swatch best"></i>Best time</span>,
-                <span><i class="availability-swatch works"></i>Also works</span>.
+                <span><i class="availability-swatch works"></i>Also works</span>,
+                <span><i class="availability-swatch unavailable"></i>Not available</span>.
             </span>
         </div>
         """,
