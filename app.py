@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
@@ -92,6 +94,18 @@ st.markdown(
     .section-gap { height: .75rem; }
     .status-pill { display: inline-block; padding: .28rem .62rem; border-radius: 999px;
         background: var(--blue-soft); color: var(--blue-dark); font-size: .82rem; font-weight: 700; }
+    .client-detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem; margin-top: 1rem; }
+    .client-detail-card { min-width: 0; background: var(--panel); border: 1px solid var(--line);
+        border-radius: 12px; padding: .9rem 1rem;
+        box-shadow: 0 4px 12px rgba(48, 73, 97, .08); }
+    .client-detail-label { color: var(--muted); font-size: .82rem; font-weight: 650;
+        margin-bottom: .35rem; }
+    .client-detail-value { color: var(--ink); font-size: 1rem; white-space: pre-wrap;
+        overflow-wrap: anywhere; }
+    @media (max-width: 700px) {
+        .client-detail-grid { grid-template-columns: 1fr; }
+    }
     div.stButton > button { border-radius: 9px; border: 1px solid #cddae6; }
     div.stButton > button[kind="primary"] { background: var(--blue-dark); border-color: var(--blue-dark); }
     .st-key-schedule_grid div.stButton > button {
@@ -534,12 +548,27 @@ def clients_page() -> None:
     status_text = "Scheduled" if client["scheduled_sessions"] else "Waiting for a time"
     st.markdown(f'<span class="status-pill">{status_text}</span>', unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Sessions each week", int(client["sessions_per_week"]))
-    c2.metric("Scheduled sessions", int(client["scheduled_sessions"]))
-    c3.metric("Location", client["location"] or "—")
-    st.markdown("**Notes**")
-    st.write(client["notes"] or "No notes added")
+    st.markdown(
+        f"""
+        <div class="client-detail-grid">
+            <div class="client-detail-card">
+                <div class="client-detail-label">Sessions per week</div>
+                <div class="client-detail-value">{int(client['sessions_per_week'])}</div>
+            </div>
+            <div class="client-detail-card">
+                <div class="client-detail-label">Location</div>
+                <div class="client-detail-value">{escape(client['location'] or 'No location added')}</div>
+            </div>
+            <div class="client-detail-card">
+                <div class="client-detail-label">Notes</div>
+                <div class="client-detail-value">{escape(client['notes'] or 'No notes added')}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.divider()
 
     with st.container(key="client_actions"):
         b1, b2 = st.columns(2)
