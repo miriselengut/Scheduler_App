@@ -769,20 +769,21 @@ def draft_page() -> None:
         )
         st.dataframe(styled_changes, hide_index=True, use_container_width=True)
 
-    approved_tab, draft_tab = st.tabs(["Current", "New schedule"])
-    with approved_tab:
-        render_schedule_grid(
-            database.get_current_assignments(DB_PATH),
-            key_prefix="draft_current",
-            clickable=False,
-        )
-    with draft_tab:
-        with st.container(key="draft_proposed"):
+    with st.expander("View full schedule comparison", expanded=False):
+        approved_tab, draft_tab = st.tabs(["Current", "New schedule"])
+        with approved_tab:
             render_schedule_grid(
-                draft_assignments,
-                key_prefix="draft_new",
+                database.get_current_assignments(DB_PATH),
+                key_prefix="draft_current",
                 clickable=False,
             )
+        with draft_tab:
+            with st.container(key="draft_proposed"):
+                render_schedule_grid(
+                    draft_assignments,
+                    key_prefix="draft_new",
+                    clickable=False,
+                )
 
 
 def settings_page() -> None:
