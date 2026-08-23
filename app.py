@@ -289,6 +289,7 @@ def render_schedule_grid(
 
 def clear_selected_schedule_client() -> None:
     st.session_state.pop("selected_schedule_client_id", None)
+    st.session_state.pop("schedule_lock_confirmation", None)
 
 
 @st.dialog(
@@ -322,10 +323,14 @@ def render_selected_client_details() -> None:
             database.set_assignment_lock(
                 assignment["id"], not bool(assignment["locked"]), DB_PATH
             )
+            completed_action = "unlocked" if assignment["locked"] else "locked"
+            st.session_state.schedule_lock_confirmation = (
+                f"Appointment {completed_action}."
+            )
             st.rerun()
-    st.caption(
-        "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
-    )
+    confirmation = st.session_state.pop("schedule_lock_confirmation", None)
+    if confirmation:
+        st.success(confirmation)
 
 
 def schedule_page() -> None:
