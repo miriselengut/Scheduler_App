@@ -115,6 +115,7 @@ st.markdown(
         box-shadow: 0 4px 10px rgba(48, 73, 97, .2);
     }
     .st-key-save_client button { box-shadow: 0 4px 10px rgba(48, 73, 97, .2); }
+    .st-key-save_settings button { box-shadow: 0 4px 10px rgba(48, 73, 97, .2); }
     .st-key-schedule_grid div.stButton > button {
         height: 2.65rem; min-height: 2.65rem; background: var(--panel);
         border-color: #b9cbd9; color: var(--ink); font-weight: 650;
@@ -161,17 +162,22 @@ st.markdown(
     div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea {
         background-color: transparent;
     }
+    div[class*="st-key-add_client_"] div[data-baseweb="input"],
+    div[class*="st-key-add_client_"] div[data-baseweb="textarea"] {
+        background: var(--panel); border-color: #b9cbd9;
+        box-shadow: 0 3px 8px rgba(48, 73, 97, .12);
+    }
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
     .availability-day { text-align: center; font-weight: 700; padding: .45rem 0 .55rem; }
-    .availability-intro { display: flex; align-items: center; flex-wrap: wrap;
-        gap: .35rem .75rem; margin: .8rem 0 .25rem; }
+    .availability-intro { display: flex; align-items: center; flex-wrap: nowrap;
+        gap: .5rem; margin: .8rem 0 .25rem; white-space: nowrap; overflow-x: auto; }
     .availability-intro-title { color: var(--ink); font-size: 1.05rem; font-weight: 700; }
     .availability-intro-note { color: var(--muted); font-size: .9rem; }
-    .availability-legend { display: inline-flex; flex-wrap: wrap; gap: .4rem .8rem;
+    .availability-options { display: inline-flex; align-items: center; gap: .3rem;
         margin: 0; color: var(--muted); font-size: .9rem; }
-    .availability-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+    .availability-options span { display: inline-flex; align-items: center; gap: .3rem; }
     .availability-swatch { width: .8rem; height: .8rem; border-radius: 4px;
         display: inline-block; border: 1px solid #c7d5e1; }
     .availability-swatch.best { background: var(--blue-dark); border-color: var(--blue-dark); }
@@ -503,13 +509,11 @@ def add_client_page() -> None:
         """
         <div class="availability-intro">
             <span class="availability-intro-title">Weekly availability</span>
-            <span class="availability-intro-note">Click a box to cycle through
-                <strong>Not available</strong>, <strong>Best time</strong>, and
-                <strong>Also works</strong>.</span>
-            <span class="availability-legend" aria-label="Availability colors">
-                <span><i class="availability-swatch best"></i>Best time</span>
-                <span><i class="availability-swatch works"></i>Also works</span>
-                <span><i class="availability-swatch unavailable"></i>Not available</span>
+            <span class="availability-intro-note">Click a box to cycle through:</span>
+            <span class="availability-options" aria-label="Availability colors">
+                <span><i class="availability-swatch unavailable"></i>Not available</span>,
+                <span><i class="availability-swatch best"></i>Best time</span>,
+                <span><i class="availability-swatch works"></i>Also works</span>.
             </span>
         </div>
         """,
@@ -799,7 +803,7 @@ def settings_page() -> None:
         second_options,
         index=second_options.index(second_default),
     )
-    if st.button("Save settings", type="primary"):
+    if st.button("Save settings", key="save_settings", type="primary"):
         try:
             show_result(
                 service.update_preferred_evenings(
