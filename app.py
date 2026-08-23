@@ -109,6 +109,12 @@ st.markdown(
     }
     div.stButton > button { border-radius: 9px; border: 1px solid #cddae6; }
     div.stButton > button[kind="primary"] { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .st-key-improve_schedule { width: 85%; margin-left: auto; }
+    .st-key-improve_schedule button {
+        background: var(--blue-dark); border-color: var(--blue-dark); color: white;
+        box-shadow: 0 4px 10px rgba(48, 73, 97, .2);
+    }
+    .st-key-save_client button { box-shadow: 0 4px 10px rgba(48, 73, 97, .2); }
     .st-key-schedule_grid div.stButton > button {
         height: 2.65rem; min-height: 2.65rem; background: var(--panel);
         border-color: #b9cbd9; color: var(--ink); font-weight: 650;
@@ -436,10 +442,16 @@ def render_selected_client_details() -> None:
 
 
 def schedule_page() -> None:
+    if st.session_state.pop("draft_approved_toast", False):
+        st.toast("Draft approved. The new schedule is now active.", icon="✅")
+
     heading, action = st.columns([3, 1.35], vertical_alignment="top")
     heading.title("Schedule")
     improve = action.button(
-        "Improve schedule", type="secondary", use_container_width=True
+        "Improve schedule",
+        key="improve_schedule",
+        type="secondary",
+        use_container_width=True,
     )
     action.caption(
         "May move appointments to reduce gaps. You’ll review changes before they apply."
@@ -504,7 +516,9 @@ def add_client_page() -> None:
         unsafe_allow_html=True,
     )
     availability = render_add_availability_grid()
-    submitted = st.button("Save client and find a time", type="primary")
+    submitted = st.button(
+        "Save client and find a time", key="save_client", type="primary"
+    )
 
     if submitted:
         try:
@@ -704,8 +718,13 @@ def draft_page() -> None:
         a1, a2 = st.columns(2)
         if a1.button("Approve", type="primary", use_container_width=True):
             try:
-                show_result(service.approve_draft(DB_PATH))
-                st.rerun()
+                result = service.approve_draft(DB_PATH)
+                if result.success:
+                    st.session_state.pending_page = "Schedule"
+                    st.session_state.draft_approved_toast = True
+                    st.rerun()
+                else:
+                    show_result(result)
             except Exception as exc:
                 st.error(str(exc))
         if a2.button(
@@ -802,7 +821,10 @@ def reset_page_scroll() -> None:
 
 
 PAGES = ["Schedule", "Add Client", "Clients", "Review Changes", "Settings"]
-if st.session_state.get("page") == "Draft Schedule":
+pending_page = st.session_state.pop("pending_page", None)
+if pending_page in PAGES:
+    st.session_state.page = pending_page
+elif st.session_state.get("page") == "Draft Schedule":
     st.session_state.page = "Review Changes"
 elif "page" not in st.session_state:
     st.session_state.page = "Schedule"
