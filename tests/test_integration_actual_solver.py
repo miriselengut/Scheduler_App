@@ -255,7 +255,7 @@ def test_removing_one_draft_change_recalculates_remaining_draft(tmp_path: Path) 
     assert database.get_client(added.client_id, db_path)["status"] == "waiting"
 
 
-def test_deleted_name_can_be_used_again_after_approval(tmp_path: Path) -> None:
+def test_deleted_name_can_be_used_again_immediately(tmp_path: Path) -> None:
     db_path = tmp_path / "scheduler.db"
     database.init_db(db_path)
     original = service.add_client(
@@ -267,7 +267,6 @@ def test_deleted_name_can_be_used_again_after_approval(tmp_path: Path) -> None:
         db_path=db_path,
     )
     service.delete_client(client_id=original.client_id, db_path=db_path)
-    service.approve_draft(db_path)
 
     replacement = service.add_client(
         name="Eli",

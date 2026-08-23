@@ -193,7 +193,7 @@ def test_failed_edit_keeps_old_information(monkeypatch, tmp_path: Path) -> None:
     assert database.get_current_assignments(db_path)[client_id][0]["slot_key"] == "SUN_1400"
 
 
-def test_delete_is_permanent_only_after_draft_approval(monkeypatch, tmp_path: Path) -> None:
+def test_delete_immediately_removes_client_and_related_records(tmp_path: Path) -> None:
     db_path = tmp_path / "scheduler.db"
     database.init_db(db_path)
     client_id = database.create_waiting_client(
@@ -205,17 +205,28 @@ def test_delete_is_permanent_only_after_draft_approval(monkeypatch, tmp_path: Pa
         db_path=db_path,
     )
     database.replace_approved_schedule(
-        [(client_id, "SUN_1400", 0)], active_client_ids={client_id}, db_path=db_path
+        [(client_id, "SUN_1400", 1)], active_client_ids={client_id}, db_path=db_path
     )
-    monkeypatch.setattr(service, "solve_schedule", lambda **kwargs: _result({}))
+    database.upsert_draft_change(
+        client_id=client_id,
+        change_type="edit",
+        proposed_name="Eli",
+        proposed_location="",
+        proposed_notes="",
+        proposed_sessions_per_week=1,
+        proposed_availability={"MON_1400": "optimal"},
+        db_path=db_path,
+    )
 
     action = service.delete_client(client_id=client_id, db_path=db_path)
-    assert action.draft_updated is True
-    assert database.get_client(client_id, db_path) is not None
-
-    service.approve_draft(db_path)
+    assert action.success is True
+    assert action.draft_updated is False
     assert database.get_client(client_id, db_path) is None
     assert database.get_current_assignments(db_path) == {}
+    assert database.get_client_availability(client_id, db_path) == {}
+    assert database.get_draft_assignments(db_path) == {}
+    assert database.list_draft_changes(db_path) == []
+    assert database.has_draft(db_path) is False
 
 
 def test_discard_draft_leaves_approved_schedule_unchanged(monkeypatch, tmp_path: Path) -> None:

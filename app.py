@@ -164,7 +164,8 @@ st.markdown(
         width: 100%; max-width: 38rem; margin-inline: auto;
     }
     .st-key-discard_entire_draft button,
-    .st-key-confirm_discard_entire_draft button {
+    .st-key-confirm_discard_entire_draft button,
+    div[class*="st-key-delete_yes_"] button {
         background: var(--danger); border-color: var(--danger); color: white;
     }
     .st-key-draft_proposed div.stButton > button:disabled {
@@ -638,6 +639,9 @@ def client_edit_form(client: dict) -> None:
 
 def clients_page() -> None:
     st.title("Clients")
+    if st.session_state.pop("client_deleted_toast", False):
+        st.toast("Client deleted.", icon="✅")
+
     clients = database.list_clients(DB_PATH)
     if not clients:
         st.info("No clients have been saved yet.")
@@ -681,7 +685,7 @@ def clients_page() -> None:
     if st.session_state.get("delete_client_id") == int(client["id"]):
         with st.container(key="client_delete_section"):
             st.warning(
-                f"Delete {client['name']}? This will permanently remove the client and all appointments when the draft is approved."
+                f"Delete {client['name']}? This immediately and permanently deletes the client, appointments, availability, locks, and related records."
             )
             confirm = st.checkbox(
                 "I understand that this client will be permanently deleted.",
@@ -689,18 +693,23 @@ def clients_page() -> None:
             )
             d1, d2 = st.columns(2)
             if d1.button(
-                "Add delete to draft",
+                "Delete",
                 disabled=not confirm,
                 type="primary",
                 key=f"delete_yes_{client['id']}",
             ):
                 try:
-                    show_result(
-                        service.delete_client(
-                            client_id=int(client["id"]), db_path=DB_PATH
-                        )
+                    result = service.delete_client(
+                        client_id=int(client["id"]), db_path=DB_PATH
                     )
-                    st.session_state.pop("delete_client_id", None)
+                    if result.success:
+                        st.session_state.pop("delete_client_id", None)
+                        st.session_state.pop("edit_client_id", None)
+                        st.session_state.client_deleted_toast = True
+                        st.session_state.pending_page = "Clients"
+                        st.rerun()
+                        return
+                    show_result(result)
                 except Exception as exc:
                     st.error(str(exc))
             if d2.button("Cancel", key=f"delete_no_{client['id']}"):

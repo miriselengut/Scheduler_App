@@ -922,14 +922,22 @@ def approve_draft(db_path: str | Path = DEFAULT_DB_PATH) -> None:
         conn.execute("DELETE FROM draft_changes")
 
 
-def permanently_delete_waiting_client(
+def permanently_delete_client(
     client_id: int,
     db_path: str | Path = DEFAULT_DB_PATH,
 ) -> None:
     with connect(db_path) as conn:
-        scheduled = conn.execute(
-            "SELECT 1 FROM assignments WHERE client_id=?", (client_id,)
-        ).fetchone()
-        if scheduled:
-            raise ValueError("Scheduled clients must be deleted through the Draft Schedule.")
+        conn.execute(
+            """
+            DELETE FROM draft_change_availability
+            WHERE change_id IN (
+                SELECT id FROM draft_changes WHERE client_id=?
+            )
+            """,
+            (client_id,),
+        )
+        conn.execute("DELETE FROM draft_changes WHERE client_id=?", (client_id,))
+        conn.execute("DELETE FROM draft_assignments WHERE client_id=?", (client_id,))
+        conn.execute("DELETE FROM assignments WHERE client_id=?", (client_id,))
+        conn.execute("DELETE FROM client_availability WHERE client_id=?", (client_id,))
         conn.execute("DELETE FROM clients WHERE id=?", (client_id,))

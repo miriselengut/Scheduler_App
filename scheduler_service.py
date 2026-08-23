@@ -226,12 +226,6 @@ def _action_message(
         if client_id != focus_client_id
     ]
 
-    if action == "delete":
-        return (
-            f"{focus_name} will be permanently deleted when the draft is approved. "
-            f"{evening_text}"
-        )
-
     if action == "improve":
         if result.schedule == {
             client_id: _sorted_slots(
@@ -390,8 +384,6 @@ def _recompute_draft(
     category = _category_for_result(result, focus_client_id=focus_client_id)
     if action == "improve":
         category = "Draft schedule ready"
-    elif action == "delete":
-        category = "Delete added to draft"
 
     message = _action_message(
         result=result,
@@ -728,29 +720,18 @@ def delete_client(
     if not client:
         raise ValueError("Client not found.")
 
-    previous = database.get_draft_change(client_id, db_path)
-    database.upsert_draft_change(
-        client_id=client_id,
-        change_type="delete",
+    database.permanently_delete_client(client_id, db_path)
+    _recompute_draft(
         db_path=db_path,
+        focus_client_id=None,
+        action="draft",
+        focus_name=None,
     )
-    result = _recompute_draft(
-        db_path=db_path,
-        focus_client_id=client_id,
-        action="delete",
-        focus_name=client["name"],
-    )
-    if not result.feasible:
-        database.restore_draft_change(previous, client_id=client_id, db_path=db_path)
-        raise RuntimeError("The remaining schedule could not be rebuilt.")
-
-    meta = database.get_draft_meta(db_path) or {}
     return ActionResult(
         success=True,
-        category=meta.get("category", "Delete added to draft"),
-        message=meta.get("message", "The delete request was added to the draft."),
+        category="Client deleted",
+        message=f"{client['name']} was permanently deleted.",
         client_id=client_id,
-        draft_updated=True,
     )
 
 
