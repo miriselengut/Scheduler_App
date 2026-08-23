@@ -79,6 +79,36 @@ def test_no_time_saves_waiting_client(monkeypatch, tmp_path: Path) -> None:
     assert database.has_draft(db_path) is False
 
 
+def test_partial_fit_is_reported_but_client_remains_waiting(
+    monkeypatch, tmp_path: Path
+) -> None:
+    db_path = tmp_path / "scheduler.db"
+    database.init_db(db_path)
+
+    def fake_solve(**kwargs):
+        client = next(
+            item for item in kwargs["clients"] if item.id in kwargs["new_client_ids"]
+        )
+        if client.sessions_per_week == 2:
+            return ScheduleResult(feasible=False)
+        return _result({client.id: ["SUN_1400"]})
+
+    monkeypatch.setattr(service, "solve_schedule", fake_solve)
+    action = service.add_client(
+        name="Miriam",
+        location="",
+        notes="",
+        sessions_per_week=2,
+        availability={"SUN_1400": "optimal", "MON_1400": "secondary"},
+        db_path=db_path,
+    )
+
+    assert action.success is False
+    assert "1 of 2 requested sessions could be scheduled on Sunday 2:00 PM" in action.message
+    assert database.get_client(action.client_id, db_path)["status"] == "waiting"
+    assert database.get_current_assignments(db_path) == {}
+
+
 def test_add_that_moves_existing_client_creates_draft(monkeypatch, tmp_path: Path) -> None:
     db_path = tmp_path / "scheduler.db"
     database.init_db(db_path)

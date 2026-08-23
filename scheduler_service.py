@@ -295,6 +295,59 @@ def _solve_current_plus_client(
     return result, current, preferred
 
 
+def _find_partial_fit(
+    *,
+    clients: list[ClientInput],
+    focus_client_id: int,
+    requested_sessions: int,
+    current_schedule: dict[int, list[dict]],
+    preferred_evenings: tuple[str, str],
+    new_client_ids: set[int] | None = None,
+    edited_client_ids: set[int] | None = None,
+    deleted_client_ids: set[int] | None = None,
+) -> ScheduleResult | None:
+    """Find the largest partial fit without changing the saved request."""
+    for session_count in range(requested_sessions - 1, 0, -1):
+        partial_clients = [
+            ClientInput(
+                id=client.id,
+                name=client.name,
+                availability=client.availability,
+                sessions_per_week=(
+                    session_count if client.id == focus_client_id else client.sessions_per_week
+                ),
+            )
+            for client in clients
+        ]
+        result = solve_schedule(
+            clients=partial_clients,
+            current_schedule=current_schedule,
+            new_client_ids=new_client_ids,
+            edited_client_ids=edited_client_ids,
+            deleted_client_ids=deleted_client_ids,
+            preferred_evenings=preferred_evenings,
+        )
+        if result.feasible and len(result.schedule.get(focus_client_id, [])) == session_count:
+            return result
+    return None
+
+
+def _partial_fit_message(
+    *,
+    name: str,
+    focus_client_id: int,
+    requested_sessions: int,
+    result: ScheduleResult,
+) -> str:
+    slots = result.schedule.get(focus_client_id, [])
+    count = len(slots)
+    return (
+        f"{name} was saved. {count} of {requested_sessions} requested sessions could "
+        f"be scheduled on {_format_times(slots)}, but all {requested_sessions} sessions "
+        "could not fit. The client remains waiting until the full request can be scheduled."
+    )
+
+
 def _recompute_draft(
     *,
     db_path: str | Path,
@@ -395,14 +448,35 @@ def add_client(
             client_id, db_path=db_path
         )
         if not result.feasible:
-            return ActionResult(
-                success=False,
-                category="No time found",
-                message=(
+            clients = _client_inputs_from_approved(
+                include_client_ids=set(current) | {client_id}, db_path=db_path
+            )
+            partial = _find_partial_fit(
+                clients=clients,
+                focus_client_id=client_id,
+                requested_sessions=sessions_per_week,
+                current_schedule=current,
+                preferred_evenings=preferred,
+                new_client_ids={client_id},
+            )
+            message = (
+                _partial_fit_message(
+                    name=cleaned_name,
+                    focus_client_id=client_id,
+                    requested_sessions=sessions_per_week,
+                    result=partial,
+                )
+                if partial
+                else (
                     f"{cleaned_name} was saved, but no time was found. None of the "
                     "times you selected work with the current schedule, even after "
                     "checking possible changes."
-                ),
+                )
+            )
+            return ActionResult(
+                success=False,
+                category="No time found",
+                message=message,
                 client_id=client_id,
             )
 
@@ -449,6 +523,21 @@ def add_client(
         focus_name=cleaned_name,
     )
     if not result.feasible:
+        clients, new_ids, edited_ids, deleted_ids, _ = _build_effective_draft_inputs(
+            db_path
+        )
+        current = database.get_current_assignments(db_path)
+        preferred = database.get_preferred_evenings(db_path)
+        partial = _find_partial_fit(
+            clients=clients,
+            focus_client_id=client_id,
+            requested_sessions=sessions_per_week,
+            current_schedule=current,
+            preferred_evenings=preferred,
+            new_client_ids=new_ids,
+            edited_client_ids=edited_ids,
+            deleted_client_ids=deleted_ids,
+        )
         database.remove_draft_change_by_client(client_id, db_path=db_path)
         _recompute_draft(
             db_path=db_path,
@@ -456,13 +545,23 @@ def add_client(
             action="draft",
             focus_name=None,
         )
+        message = (
+            _partial_fit_message(
+                name=cleaned_name,
+                focus_client_id=client_id,
+                requested_sessions=sessions_per_week,
+                result=partial,
+            )
+            if partial
+            else (
+                f"{cleaned_name} was saved, but no time was found. None of the "
+                "times you selected work with the current schedule and draft changes."
+            )
+        )
         return ActionResult(
             success=False,
             category="No time found",
-            message=(
-                f"{cleaned_name} was saved, but no time was found. None of the "
-                "times you selected work with the current schedule and draft changes."
-            ),
+            message=message,
             client_id=client_id,
         )
 
