@@ -21,6 +21,8 @@ class ActionResult:
     client_id: int | None = None
     added_immediately: bool = False
     draft_updated: bool = False
+    partial_sessions: int = 0
+    requested_sessions: int = 0
 
 
 def _sorted_slots(slot_keys: list[str]) -> list[str]:
@@ -478,6 +480,10 @@ def add_client(
                 category="No time found",
                 message=message,
                 client_id=client_id,
+                partial_sessions=(
+                    len(partial.schedule.get(client_id, [])) if partial else 0
+                ),
+                requested_sessions=sessions_per_week,
             )
 
         if result.unchanged_client_moves == 0:
@@ -563,6 +569,10 @@ def add_client(
             category="No time found",
             message=message,
             client_id=client_id,
+            partial_sessions=(
+                len(partial.schedule.get(client_id, [])) if partial else 0
+            ),
+            requested_sessions=sessions_per_week,
         )
 
     meta = database.get_draft_meta(db_path) or {}
@@ -570,6 +580,64 @@ def add_client(
         success=True,
         category=meta.get("category", "Added to draft"),
         message=meta.get("message", "The client was added to the draft schedule."),
+        client_id=client_id,
+        draft_updated=True,
+    )
+
+
+def add_partial_client_to_draft(
+    *,
+    client_id: int,
+    sessions_per_week: int,
+    db_path: str | Path = database.DEFAULT_DB_PATH,
+) -> ActionResult:
+    client = database.get_client(client_id, db_path)
+    if not client:
+        raise ValueError("Client not found.")
+    requested_sessions = int(client["sessions_per_week"])
+    if sessions_per_week < 1 or sessions_per_week >= requested_sessions:
+        raise ValueError("Choose a valid partial session count.")
+
+    availability = database.get_client_availability(client_id, db_path)
+    database.upsert_draft_change(
+        client_id=client_id,
+        change_type="add",
+        proposed_name=client["name"],
+        proposed_location=client["location"],
+        proposed_notes=client["notes"],
+        proposed_sessions_per_week=sessions_per_week,
+        proposed_availability=availability,
+        db_path=db_path,
+    )
+    result = _recompute_draft(
+        db_path=db_path,
+        focus_client_id=client_id,
+        action="add",
+        focus_name=client["name"],
+    )
+    if not result.feasible:
+        database.remove_draft_change_by_client(client_id, db_path=db_path)
+        _recompute_draft(
+            db_path=db_path,
+            focus_client_id=None,
+            action="draft",
+            focus_name=None,
+        )
+        return ActionResult(
+            success=False,
+            category="Partial schedule no longer fits",
+            message="The schedule changed. Try saving the client again.",
+            client_id=client_id,
+        )
+
+    meta = database.get_draft_meta(db_path) or {}
+    return ActionResult(
+        success=True,
+        category=meta.get("category", "Added to draft"),
+        message=(
+            f"{sessions_per_week} of {requested_sessions} requested sessions were "
+            "added to Review Changes."
+        ),
         client_id=client_id,
         draft_updated=True,
     )

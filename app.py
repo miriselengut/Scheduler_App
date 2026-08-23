@@ -248,6 +248,16 @@ def show_result(result: service.ActionResult) -> None:
         st.write(result.message)
 
 
+def show_add_client_result(result: service.ActionResult) -> None:
+    notice = f"**{result.category}:** {result.message}"
+    if result.success:
+        st.success(notice)
+        if result.draft_updated:
+            st.info("Review everything on the **Review Changes** page before approving it.")
+    else:
+        st.error(notice)
+
+
 def split_client_name(name: str) -> tuple[str, str]:
     parts = name.strip().split(maxsplit=1)
     return (parts[0], parts[1] if len(parts) > 1 else "") if parts else ("", "")
@@ -520,6 +530,7 @@ def add_client_page() -> None:
     )
 
     if submitted:
+        st.session_state.pop("partial_add_suggestion", None)
         try:
             result = service.add_client(
                 name=combine_client_name(first_name, last_name),
@@ -529,11 +540,41 @@ def add_client_page() -> None:
                 availability=availability,
                 db_path=DB_PATH,
             )
-            show_result(result)
+            show_add_client_result(result)
+            if result.client_id and result.partial_sessions:
+                st.session_state.partial_add_suggestion = {
+                    "client_id": result.client_id,
+                    "partial_sessions": result.partial_sessions,
+                    "requested_sessions": result.requested_sessions,
+                }
         except ValueError as exc:
             st.error(str(exc))
         except Exception as exc:
             st.error(f"The client could not be saved: {exc}")
+
+    suggestion = st.session_state.get("partial_add_suggestion")
+    if suggestion:
+        partial_count = int(suggestion["partial_sessions"])
+        requested_count = int(suggestion["requested_sessions"])
+        if st.button(
+            f"Send {partial_count} of {requested_count} sessions to Review Changes",
+            key="send_partial_add_to_review",
+            type="primary",
+        ):
+            try:
+                result = service.add_partial_client_to_draft(
+                    client_id=int(suggestion["client_id"]),
+                    sessions_per_week=partial_count,
+                    db_path=DB_PATH,
+                )
+                st.session_state.pop("partial_add_suggestion", None)
+                if result.success:
+                    st.session_state.pending_page = "Review Changes"
+                    st.rerun()
+                    return
+                show_add_client_result(result)
+            except Exception as exc:
+                st.error(f"The partial schedule could not be added: {exc}")
 
 
 def client_edit_form(client: dict) -> None:
@@ -840,6 +881,8 @@ def reset_page_scroll() -> None:
         st.session_state.pop("delete_client_id", None)
     if st.session_state.get("page") != "Review Changes":
         st.session_state.pop("confirm_discard_draft", None)
+    if st.session_state.get("page") != "Add Client":
+        st.session_state.pop("partial_add_suggestion", None)
 
 
 PAGES = ["Schedule", "Add Client", "Clients", "Review Changes", "Settings"]

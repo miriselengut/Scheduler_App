@@ -108,6 +108,16 @@ def test_partial_fit_is_reported_but_client_remains_waiting(
     assert database.get_client(action.client_id, db_path)["status"] == "waiting"
     assert database.get_current_assignments(db_path) == {}
 
+    review = service.add_partial_client_to_draft(
+        client_id=action.client_id,
+        sessions_per_week=action.partial_sessions,
+        db_path=db_path,
+    )
+    assert review.success is True
+    assert review.draft_updated is True
+    assert database.has_draft(db_path) is True
+    assert database.get_draft_assignments(db_path)[action.client_id][0]["slot_key"] == "SUN_1400"
+
 
 def test_add_that_moves_existing_client_creates_draft(monkeypatch, tmp_path: Path) -> None:
     db_path = tmp_path / "scheduler.db"
