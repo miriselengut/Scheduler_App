@@ -60,7 +60,8 @@ st.markdown(
         --danger: #a94f58;
     }
     .stApp { background: var(--wash); color: var(--ink); }
-    .block-container { max-width: 1500px; padding-top: 1.5rem; padding-bottom: 3rem; }
+    [data-testid="stHeader"], [data-testid="stToolbar"] { display: none; }
+    .block-container { max-width: 1500px; padding-top: 1rem; padding-bottom: 3rem; }
     h1, h2, h3 { color: var(--ink); letter-spacing: -0.02em; }
     [data-testid="stSidebar"] { background: #eaf1f7; border-right: 1px solid var(--line); }
     [data-testid="stSidebar"] .stRadio label { padding: .38rem .55rem; border-radius: 9px; }
