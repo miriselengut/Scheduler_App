@@ -645,7 +645,7 @@ if "page" not in st.session_state:
     st.session_state.page = "Schedule"
 
 st.sidebar.markdown("## Weekly Scheduler")
-st.sidebar.caption("One provider · 30-minute sessions")
+st.sidebar.caption("Optimize Kriah Scheduling effortlessly")
 page = st.sidebar.radio("Go to", PAGES, key="page")
 
 if database.has_draft(DB_PATH):
