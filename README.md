@@ -2,9 +2,26 @@
 
 A private, administrator-only recurring weekly scheduler for one provider and approximately 10–12 clients.
 
+The deployed Streamlit app stores its live data in Supabase PostgreSQL. The included
+`scheduler.db` remains a local demo copy and is used by the automated tests; the live
+website does not read or modify it.
+
 This complete download includes a ready-to-use `scheduler.db` with eight sample clients and nine sample appointments, so the website is populated the first time it opens.
 
 **Project build:** `2026.08.03-v2`
+
+## Live database connection
+
+The app expects one private Streamlit secret:
+
+```toml
+SUPABASE_DB_URL = "postgresql://postgres.PROJECT_REF:PASSWORD@POOLER_HOST:5432/postgres"
+```
+
+In Supabase, copy the **Session pooler** URI from **Connect** and replace its password
+placeholder with the project's database password. Add the completed value in the
+deployed app's **Settings > Secrets**. Never commit the completed connection string to
+GitHub. A safe placeholder is included at `.streamlit/secrets.toml.example`.
 
 ## Schedule setup
 

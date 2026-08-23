@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import os
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterable
@@ -8,14 +9,69 @@ from typing import Iterable
 from constants import DAYS, SLOT_BY_KEY
 from project_version import EXPECTED_BUILD
 
-DEFAULT_DB_PATH = Path(__file__).with_name("scheduler.db")
+DEFAULT_DB_PATH = None
+
+
+def _supabase_db_url() -> str:
+    value = os.getenv("SUPABASE_DB_URL") or os.getenv("DATABASE_URL")
+    if value:
+        return value
+    try:
+        import streamlit as st
+
+        value = st.secrets.get("SUPABASE_DB_URL")
+    except Exception:
+        value = None
+    if not value:
+        raise RuntimeError(
+            "Missing SUPABASE_DB_URL. Add the Supabase connection string to "
+            "Streamlit Secrets or your local environment."
+        )
+    return str(value)
+
+
+class _PostgresConnection:
+    """Small compatibility layer for the existing parameterized SQL."""
+
+    def __init__(self, connection):
+        self._connection = connection
+
+    @staticmethod
+    def _sql(query: str) -> str:
+        return query.replace("?", "%s")
+
+    def execute(self, query: str, params=()):
+        return self._connection.execute(self._sql(query), params)
+
+    def executemany(self, query: str, params):
+        return self._connection.executemany(self._sql(query), params)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self._connection.close()
 
 
 @contextmanager
-def connect(db_path: str | Path = DEFAULT_DB_PATH):
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
+def connect(db_path: str | Path | None = DEFAULT_DB_PATH):
+    if db_path is None:
+        try:
+            import psycopg
+            from psycopg.rows import dict_row
+        except ImportError as exc:
+            raise RuntimeError(
+                "The psycopg package is required for the Supabase connection."
+            ) from exc
+        raw_connection = psycopg.connect(_supabase_db_url(), row_factory=dict_row)
+        connection = _PostgresConnection(raw_connection)
+    else:
+        connection = sqlite3.connect(db_path)
+        connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
     try:
         yield connection
         connection.commit()
@@ -84,7 +140,11 @@ def _migrate_assignments(conn: sqlite3.Connection) -> None:
     conn.execute("DROP TABLE assignments_legacy")
 
 
-def init_db(db_path: str | Path = DEFAULT_DB_PATH) -> None:
+def init_db(db_path: str | Path | None = DEFAULT_DB_PATH) -> None:
+    if db_path is None:
+        with connect() as conn:
+            conn.execute("SELECT 1 FROM clients LIMIT 1")
+        return
     with connect(db_path) as conn:
         conn.executescript(
             """
@@ -263,7 +323,7 @@ def name_exists(
     cleaned_name = name.strip()
     if not cleaned_name:
         return False
-    query = "SELECT 1 FROM clients WHERE name = ? COLLATE NOCASE"
+    query = "SELECT 1 FROM clients WHERE LOWER(name) = LOWER(?)"
     params: list[object] = [cleaned_name]
     if exclude_client_id is not None:
         query += " AND id <> ?"
@@ -296,11 +356,17 @@ def create_waiting_client(
             """
             INSERT INTO clients
                 (name, location, notes, sessions_per_week, active, status)
-            VALUES (?, ?, ?, ?, 1, 'waiting')
+            VALUES (?, ?, ?, ?, true, 'waiting')
             """,
             (cleaned_name, location.strip(), notes.strip(), sessions_per_week),
         )
-        client_id = int(cursor.lastrowid)
+        if db_path is None:
+            client_id = int(
+                conn.execute("SELECT currval(pg_get_serial_sequence('clients', 'id'))")
+                .fetchone()["currval"]
+            )
+        else:
+            client_id = int(cursor.lastrowid)
         _replace_availability_conn(conn, client_id, availability)
         return client_id
 
@@ -341,7 +407,7 @@ def list_clients(db_path: str | Path = DEFAULT_DB_PATH) -> list[dict]:
             FROM clients c
             LEFT JOIN assignments a ON a.client_id = c.id
             GROUP BY c.id
-            ORDER BY c.name COLLATE NOCASE
+            ORDER BY LOWER(c.name)
             """
         ).fetchall()
         return [dict(row) for row in rows]
@@ -408,7 +474,7 @@ def set_assignment_lock(
             SET locked = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (1 if locked else 0, assignment_id),
+            (bool(locked), assignment_id),
         )
         if cursor.rowcount != 1:
             raise ValueError("Appointment not found.")
@@ -429,7 +495,7 @@ def replace_approved_schedule(
             INSERT INTO assignments (client_id, slot_key, locked)
             VALUES (?, ?, ?)
             """,
-            rows,
+            [(client_id, slot_key, bool(locked)) for client_id, slot_key, locked in rows],
         )
         if active_ids:
             placeholders = ",".join("?" for _ in active_ids)
@@ -469,11 +535,17 @@ def set_preferred_evenings(
         raise ValueError("Choose two different evenings.")
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('preferred_evening_1', ?)",
+            """
+            INSERT INTO settings (key, value) VALUES ('preferred_evening_1', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
             (first,),
         )
         conn.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('preferred_evening_2', ?)",
+            """
+            INSERT INTO settings (key, value) VALUES ('preferred_evening_2', ?)
+            ON CONFLICT(key) DO UPDATE SET value=excluded.value
+            """,
             (second,),
         )
 
@@ -600,7 +672,14 @@ def upsert_draft_change(
                     proposed_sessions_per_week,
                 ),
             )
-            change_id = int(cursor.lastrowid)
+            if db_path is None:
+                change_id = int(
+                    conn.execute(
+                        "SELECT currval(pg_get_serial_sequence('draft_changes', 'id'))"
+                    ).fetchone()["currval"]
+                )
+            else:
+                change_id = int(cursor.lastrowid)
 
         if proposed_availability:
             conn.executemany(
@@ -722,7 +801,7 @@ def save_draft_solution(
                 free_evenings,
                 preferred_evenings_free,
                 moved_count,
-                1 if improve_requested else 0,
+                bool(improve_requested),
                 EXPECTED_BUILD,
             ),
         )
@@ -733,7 +812,10 @@ def save_draft_solution(
                 (client_id, slot_key, locked, preference_level)
             VALUES (?, ?, ?, ?)
             """,
-            assignment_rows,
+            [
+                (client_id, slot_key, bool(locked), preference_level)
+                for client_id, slot_key, locked, preference_level in assignment_rows
+            ],
         )
 
 
@@ -765,7 +847,7 @@ def approve_draft(db_path: str | Path = DEFAULT_DB_PATH) -> None:
                 """
                 UPDATE clients
                 SET name=?, location=?, notes=?, sessions_per_week=?,
-                    status='active', active=1, updated_at=CURRENT_TIMESTAMP
+                    status='active', active=true, updated_at=CURRENT_TIMESTAMP
                 WHERE id=?
                 """,
                 (
@@ -819,7 +901,10 @@ def approve_draft(db_path: str | Path = DEFAULT_DB_PATH) -> None:
             INSERT INTO assignments (client_id, slot_key, locked)
             VALUES (?, ?, ?)
             """,
-            [(row["client_id"], row["slot_key"], row["locked"]) for row in rows],
+            [
+                (row["client_id"], row["slot_key"], bool(row["locked"]))
+                for row in rows
+            ],
         )
 
         scheduled_ids = {int(row["client_id"]) for row in rows}

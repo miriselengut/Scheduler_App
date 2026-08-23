@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import streamlit as st
 
@@ -23,7 +21,7 @@ from constants import (
 )
 from project_version import EXPECTED_BUILD
 
-DB_PATH = Path(__file__).with_name("scheduler.db")
+DB_PATH = database.DEFAULT_DB_PATH
 
 st.set_page_config(
     page_title="Weekly Client Scheduler",
@@ -32,7 +30,12 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-database.init_db(DB_PATH)
+try:
+    database.init_db(DB_PATH)
+except Exception:
+    st.error("The scheduler could not connect to Supabase.")
+    st.info("Check that SUPABASE_DB_URL is present in this app's Streamlit Secrets.")
+    st.stop()
 
 st.markdown(
     """

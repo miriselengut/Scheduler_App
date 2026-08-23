@@ -21,3 +21,5 @@ Thumbs.db
 .env
 __pycache__/
 *.pyc
+Kirah_Scheduler_App.zip
+*.zip
