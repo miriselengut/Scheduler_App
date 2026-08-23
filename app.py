@@ -65,15 +65,20 @@ st.markdown(
     .stApp { background: var(--wash); color: var(--ink); }
     [data-testid="stHeader"] {
         height: 0; min-height: 0; background: transparent; border: 0;
-        pointer-events: none;
+        pointer-events: none; overflow: visible !important;
     }
     [data-testid="stToolbar"] { display: none; }
+    [data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapsedControl"],
     [data-testid="stSidebarCollapseButton"] {
-        display: flex !important; pointer-events: auto; position: relative; z-index: 1000;
+        display: flex !important; visibility: visible !important; opacity: 1 !important;
+        pointer-events: auto; position: relative; z-index: 1000;
     }
+    [data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapsedControl"] {
-        position: fixed; top: .5rem; left: .5rem;
+        position: fixed !important; top: .5rem; left: .5rem;
+        background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
+        box-shadow: 0 3px 8px rgba(48, 73, 97, .14);
     }
     .block-container { max-width: 1500px; padding-top: 1rem; padding-bottom: 3rem; }
     h1, h2, h3 { color: var(--ink); letter-spacing: -0.02em; }
