@@ -346,7 +346,8 @@ def schedule_page() -> None:
     if not assignments:
         st.info("No appointments are scheduled yet. Add the first client to begin.")
     render_schedule_grid(assignments, key_prefix="approved", clickable=True)
-    render_selected_client_details()
+    if st.session_state.get("selected_schedule_client_id"):
+        render_selected_client_details()
 
     st.divider()
     st.subheader("Improve schedule")
