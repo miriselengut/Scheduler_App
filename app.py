@@ -129,6 +129,15 @@ def availability_dataframe(saved: dict[str, str] | None = None) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def split_client_name(name: str) -> tuple[str, str]:
+    parts = name.strip().split(maxsplit=1)
+    return (parts[0], parts[1] if len(parts) > 1 else "") if parts else ("", "")
+
+
+def combine_client_name(first_name: str, last_name: str) -> str:
+    return " ".join(part.strip() for part in (first_name, last_name) if part.strip())
+
+
 def render_availability_editor(
     *,
     saved: dict[str, str] | None,
@@ -367,10 +376,11 @@ def add_client_page() -> None:
     st.title("Add Client")
     st.write("Enter the client information, then choose every time that can work.")
 
-    c1, c2 = st.columns(2)
-    name = c1.text_input("Client name", key="add_client_name")
-    location = c2.text_input("Location", key="add_client_location")
-    sessions = c1.number_input(
+    c1, c2, c3 = st.columns(3)
+    first_name = c1.text_input("First name", key="add_client_first_name")
+    last_name = c2.text_input("Last name", key="add_client_last_name")
+    location = c3.text_input("Location", key="add_client_location")
+    sessions = st.number_input(
         "Sessions each week", min_value=1, max_value=5, value=1, step=1,
         key="add_client_sessions",
     )
@@ -382,7 +392,7 @@ def add_client_page() -> None:
     if submitted:
         try:
             result = service.add_client(
-                name=name,
+                name=combine_client_name(first_name, last_name),
                 location=location,
                 notes=notes,
                 sessions_per_week=int(sessions),
@@ -398,16 +408,18 @@ def add_client_page() -> None:
 
 def client_edit_form(client: dict) -> None:
     client_id = int(client["id"])
+    first_name, last_name = split_client_name(client["name"])
     saved_availability = database.get_client_availability(client_id, DB_PATH)
     st.divider()
     st.subheader(f"Edit {client['name']}")
     st.caption("The approved client information stays unchanged until the draft is approved.")
 
     with st.form(f"edit_client_{client_id}"):
-        c1, c2 = st.columns(2)
-        name = c1.text_input("Client name", value=client["name"])
-        location = c2.text_input("Location", value=client["location"])
-        sessions = c1.number_input(
+        c1, c2, c3 = st.columns(3)
+        first_name = c1.text_input("First name", value=first_name)
+        last_name = c2.text_input("Last name", value=last_name)
+        location = c3.text_input("Location", value=client["location"])
+        sessions = st.number_input(
             "Sessions each week",
             min_value=1,
             max_value=5,
@@ -427,7 +439,7 @@ def client_edit_form(client: dict) -> None:
             show_result(
                 service.edit_client(
                     client_id=client_id,
-                    name=name,
+                    name=combine_client_name(first_name, last_name),
                     location=location,
                     notes=notes,
                     sessions_per_week=int(sessions),
@@ -643,6 +655,12 @@ def settings_page() -> None:
             )
         except Exception as exc:
             st.error(str(exc))
+
+    st.divider()
+    st.subheader("Appointment locks")
+    st.write(
+        "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
+    )
 
     st.divider()
     st.caption(f"Project build: {APP_BUILD}")
