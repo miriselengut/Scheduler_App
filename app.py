@@ -305,35 +305,30 @@ def render_selected_client_details() -> None:
     assignments = database.get_current_assignments(DB_PATH).get(client_id, [])
 
     st.subheader(client["name"])
-    left, right = st.columns([1.9, 1.1])
-    with left:
-        st.markdown("**Location**")
-        st.write(client["location"] or "No location added")
-        st.markdown("**Notes**")
-        st.write(client["notes"] or "No notes added")
-    with right:
-        st.markdown("**Lock**")
-        st.caption(
-            "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
-        )
-        st.markdown("**Appointments**")
-        if not assignments:
-            st.info("This client is waiting for a time.")
-        for assignment in sorted(
-            assignments,
-            key=lambda item: (
-                SLOT_BY_KEY[item["slot_key"]].day_index,
-                SLOT_BY_KEY[item["slot_key"]].time_index,
-            ),
-        ):
-            c1, c2 = st.columns([3, 1])
-            c1.write(SLOT_KEY_TO_LABEL[assignment["slot_key"]])
-            label = "Unlock" if assignment["locked"] else "Lock"
-            if c2.button(label, key=f"lock_{assignment['id']}"):
-                database.set_assignment_lock(
-                    assignment["id"], not bool(assignment["locked"]), DB_PATH
-                )
-                st.rerun()
+    st.markdown("**Location**")
+    st.write(client["location"] or "No location added")
+    st.markdown("**Notes**")
+    st.write(client["notes"] or "No notes added")
+    st.markdown("**Appointments**")
+    if not assignments:
+        st.info("This client is waiting for a time.")
+    for assignment in sorted(
+        assignments,
+        key=lambda item: (
+            SLOT_BY_KEY[item["slot_key"]].day_index,
+            SLOT_BY_KEY[item["slot_key"]].time_index,
+        ),
+    ):
+        st.write(SLOT_KEY_TO_LABEL[assignment["slot_key"]])
+        label = "Unlock" if assignment["locked"] else "Lock"
+        if st.button(label, key=f"lock_{assignment['id']}"):
+            database.set_assignment_lock(
+                assignment["id"], not bool(assignment["locked"]), DB_PATH
+            )
+            st.rerun()
+    st.caption(
+        "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
+    )
 
 
 def schedule_page() -> None:
