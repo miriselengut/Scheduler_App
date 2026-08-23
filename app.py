@@ -159,12 +159,12 @@ st.markdown(
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
     .availability-day { text-align: center; font-weight: 700; padding: .45rem 0 .55rem; }
-    .availability-intro { display: flex; align-items: baseline; flex-wrap: wrap;
+    .availability-intro { display: flex; align-items: center; flex-wrap: wrap;
         gap: .35rem .75rem; margin: .8rem 0 .25rem; }
-    .availability-intro-title { color: var(--ink); font-size: .95rem; font-weight: 700; }
-    .availability-intro-note { color: var(--muted); font-size: .82rem; }
-    .availability-legend { display: flex; flex-wrap: wrap; gap: .45rem 1rem;
-        margin: .25rem 0 .7rem; color: var(--muted); font-size: .82rem; }
+    .availability-intro-title { color: var(--ink); font-size: 1.05rem; font-weight: 700; }
+    .availability-intro-note { color: var(--muted); font-size: .9rem; }
+    .availability-legend { display: inline-flex; flex-wrap: wrap; gap: .4rem .8rem;
+        margin: 0; color: var(--muted); font-size: .9rem; }
     .availability-legend span { display: inline-flex; align-items: center; gap: .35rem; }
     .availability-swatch { width: .8rem; height: .8rem; border-radius: 4px;
         display: inline-block; border: 1px solid #c7d5e1; }
@@ -274,16 +274,6 @@ def render_add_availability_grid() -> dict[str, str]:
             slot_key: PREFERENCE_UNAVAILABLE for slot_key in SLOT_BY_KEY
         }
 
-    st.markdown(
-        """
-        <div class="availability-legend" aria-label="Availability colors">
-            <span><i class="availability-swatch best"></i>Best time</span>
-            <span><i class="availability-swatch works"></i>Also works</span>
-            <span><i class="availability-swatch unavailable"></i>Not available</span>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
     values = st.session_state[state_key]
     button_types = {
         PREFERENCE_UNAVAILABLE: "tertiary",
@@ -456,7 +446,17 @@ def schedule_page() -> None:
     )
     if improve:
         try:
-            show_result(service.request_improve_schedule(DB_PATH))
+            result = service.request_improve_schedule(DB_PATH)
+            if result.success and result.draft_updated:
+                changed_count = len(schedule_change_table())
+                schedule_word = "schedule" if changed_count == 1 else "schedules"
+                st.info(
+                    f"**Draft ready:** {changed_count} client {schedule_word} would change "
+                    "to reduce gaps and preserve free evenings. Review and approve the "
+                    "draft on the **Review Changes** page before anything takes effect."
+                )
+            else:
+                show_result(result)
         except Exception as exc:
             st.error(str(exc))
 
@@ -494,6 +494,11 @@ def add_client_page() -> None:
             <span class="availability-intro-note">Click a box to cycle through
                 <strong>Not available</strong>, <strong>Best time</strong>, and
                 <strong>Also works</strong>.</span>
+            <span class="availability-legend" aria-label="Availability colors">
+                <span><i class="availability-swatch best"></i>Best time</span>
+                <span><i class="availability-swatch works"></i>Also works</span>
+                <span><i class="availability-swatch unavailable"></i>Not available</span>
+            </span>
         </div>
         """,
         unsafe_allow_html=True,
