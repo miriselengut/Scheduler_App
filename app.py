@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 import database
 import scheduler_service as service
@@ -64,13 +65,18 @@ st.markdown(
     .block-container { max-width: 1500px; padding-top: 1rem; padding-bottom: 3rem; }
     h1, h2, h3 { color: var(--ink); letter-spacing: -0.02em; }
     [data-testid="stSidebar"] { background: #eaf1f7; border-right: 1px solid var(--line); }
-    [data-testid="stSidebar"] .stRadio label { padding: .38rem .55rem; border-radius: 9px; }
+    [data-testid="stSidebar"] [role="radiogroup"] { gap: .25rem; }
+    [data-testid="stSidebar"] label[data-baseweb="radio"] {
+        width: 100%; padding: .55rem .7rem; border-radius: 9px;
+    }
+    [data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child { display: none; }
+    [data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
+        background: var(--blue-soft); color: var(--blue-dark); font-weight: 700;
+    }
     div[data-testid="stForm"], div[data-testid="stExpander"], .clean-card {
         background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
         padding: 1rem; box-shadow: 0 5px 18px rgba(48, 73, 97, .06);
     }
-    .eyebrow { color: var(--blue-dark); font-size: .78rem; font-weight: 700;
-        text-transform: uppercase; letter-spacing: .12em; }
     .muted { color: var(--muted); }
     .schedule-time { color: var(--muted); font-weight: 650; padding-top: .55rem; }
     .empty-slot { height: 2.65rem; border: 1px dashed #d7e1ea; border-radius: 9px;
@@ -136,7 +142,7 @@ def show_result(result: service.ActionResult) -> None:
         st.success(result.category)
         st.write(result.message)
         if result.draft_updated:
-            st.info("Review everything on the **Draft Schedule** page before approving it.")
+            st.info("Review everything on the **Review Changes** page before approving it.")
     else:
         st.error(result.category)
         st.write(result.message)
@@ -369,7 +375,6 @@ def render_selected_client_details() -> None:
 
 
 def schedule_page() -> None:
-    st.markdown('<div class="eyebrow">Approved weekly plan</div>', unsafe_allow_html=True)
     st.title("Schedule")
     preferred = database.get_preferred_evenings(DB_PATH)
     st.caption(
@@ -398,7 +403,6 @@ def schedule_page() -> None:
 
 
 def add_client_page() -> None:
-    st.markdown('<div class="eyebrow">New recurring appointment</div>', unsafe_allow_html=True)
     st.title("Add Client")
     st.write("Enter the client information, then choose every time that can work.")
 
@@ -480,7 +484,6 @@ def client_edit_form(client: dict) -> None:
 
 
 def clients_page() -> None:
-    st.markdown('<div class="eyebrow">People and preferences</div>', unsafe_allow_html=True)
     st.title("Clients")
     clients = database.list_clients(DB_PATH)
     if not clients:
@@ -578,6 +581,14 @@ def _format_slot_set(slot_keys: set[str]) -> str:
     return ", ".join(SLOT_KEY_TO_LABEL[key] for key in ordered)
 
 
+def _natural_list(values: list[str]) -> str:
+    if len(values) < 2:
+        return "".join(values)
+    if len(values) == 2:
+        return f"{values[0]} and {values[1]}"
+    return f"{', '.join(values[:-1])}, and {values[-1]}"
+
+
 def _draft_summary(
     meta: dict,
     changes: list[dict],
@@ -588,14 +599,19 @@ def _draft_summary(
         for change in changes
         if change["change_type"] == "add"
     ]
-    additions = ", ".join(added_names) if added_names else "No new clients"
+    additions = (
+        f"{_natural_list(added_names)} can be added"
+        if added_names
+        else "No new clients will be added"
+    )
 
     moved_count = int(meta["moved_count"])
-    moves = (
-        "No appointments"
-        if moved_count == 0
-        else f"{moved_count} appointment{'s' if moved_count != 1 else ''}"
-    )
+    if moved_count == 0:
+        moves = "no appointments need to move"
+    elif moved_count == 1:
+        moves = "1 appointment must move"
+    else:
+        moves = f"{moved_count} appointments must move"
 
     used_evenings = {
         SLOT_BY_KEY[assignment["slot_key"]].day
@@ -604,16 +620,18 @@ def _draft_summary(
         if SLOT_BY_KEY[assignment["slot_key"]].block == "evening"
     }
     free_evenings = [day for day in DAYS if day not in used_evenings]
-    evenings = ", ".join(free_evenings) if free_evenings else "None"
-
-    return (
-        f"**Can be added:** {additions} · **Appointments that must move:** {moves} · "
-        f"**Evenings that remain free:** {evenings}"
+    evenings = (
+        f"{_natural_list(free_evenings)} evening"
+        f"{'s' if len(free_evenings) != 1 else ''} will remain free"
+        if free_evenings
+        else "no evenings will remain free"
     )
+
+    return f"{additions}, {moves}, and {evenings}."
 
 
 def draft_page() -> None:
-    st.title("Draft Schedule")
+    st.title("Review Changes")
     meta = database.get_draft_meta(DB_PATH)
     changes = database.list_draft_changes(DB_PATH)
 
@@ -623,6 +641,37 @@ def draft_page() -> None:
 
     draft_assignments = database.get_draft_assignments(DB_PATH)
     st.info(_draft_summary(meta, changes, draft_assignments))
+
+    with st.container(key="draft_actions"):
+        a1, a2 = st.columns(2)
+        if a1.button("Approve", type="primary", use_container_width=True):
+            try:
+                show_result(service.approve_draft(DB_PATH))
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+        if a2.button(
+            "Discard",
+            key="discard_entire_draft",
+            use_container_width=True,
+        ):
+            st.session_state.confirm_discard_draft = True
+
+    if st.session_state.get("confirm_discard_draft"):
+        with st.container(key="draft_discard_section"):
+            st.warning(
+                "Discard every draft change? The approved schedule will stay exactly the same."
+            )
+            c1, c2 = st.columns(2)
+            if c1.button(
+                "Yes, discard draft", key="confirm_discard_entire_draft"
+            ):
+                show_result(service.discard_draft(DB_PATH))
+                st.session_state.pop("confirm_discard_draft", None)
+                st.rerun()
+            if c2.button("Keep draft"):
+                st.session_state.pop("confirm_discard_draft", None)
+                st.rerun()
 
     if changes:
         st.subheader("Request")
@@ -653,7 +702,7 @@ def draft_page() -> None:
         )
         st.dataframe(styled_changes, hide_index=True, use_container_width=True)
 
-    approved_tab, draft_tab = st.tabs(["Current", "Proposed"])
+    approved_tab, draft_tab = st.tabs(["Current", "New schedule"])
     with approved_tab:
         render_schedule_grid(
             database.get_current_assignments(DB_PATH),
@@ -668,41 +717,8 @@ def draft_page() -> None:
                 clickable=False,
             )
 
-    st.divider()
-    with st.container(key="draft_actions"):
-        a1, a2 = st.columns(2)
-        if a1.button("Approve entire draft", type="primary", use_container_width=True):
-            try:
-                show_result(service.approve_draft(DB_PATH))
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
-        if a2.button(
-            "Discard entire draft",
-            key="discard_entire_draft",
-            use_container_width=True,
-        ):
-            st.session_state.confirm_discard_draft = True
-
-    if st.session_state.get("confirm_discard_draft"):
-        with st.container(key="draft_discard_section"):
-            st.warning(
-                "Discard every draft change? The approved schedule will stay exactly the same."
-            )
-            c1, c2 = st.columns(2)
-            if c1.button(
-                "Yes, discard draft", key="confirm_discard_entire_draft"
-            ):
-                show_result(service.discard_draft(DB_PATH))
-                st.session_state.pop("confirm_discard_draft", None)
-                st.rerun()
-            if c2.button("Keep draft"):
-                st.session_state.pop("confirm_discard_draft", None)
-                st.rerun()
-
 
 def settings_page() -> None:
-    st.markdown('<div class="eyebrow">Scheduling preferences</div>', unsafe_allow_html=True)
     st.title("Settings")
     current_first, current_second = database.get_preferred_evenings(DB_PATH)
     st.write(
@@ -738,17 +754,38 @@ def settings_page() -> None:
         "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
     )
 
-    st.divider()
-    st.caption(f"Project build: {APP_BUILD}")
+
+def reset_page_scroll() -> None:
+    st.session_state.scroll_to_page_top = True
 
 
-PAGES = ["Schedule", "Add Client", "Clients", "Draft Schedule", "Settings"]
-if "page" not in st.session_state:
+PAGES = ["Schedule", "Add Client", "Clients", "Review Changes", "Settings"]
+if st.session_state.get("page") == "Draft Schedule":
+    st.session_state.page = "Review Changes"
+elif "page" not in st.session_state:
     st.session_state.page = "Schedule"
 
 st.sidebar.markdown("## Weekly Scheduler")
-st.sidebar.caption("Optimize Kriah Scheduling effortlessly")
-page = st.sidebar.radio("Go to", PAGES, key="page")
+page = st.sidebar.radio(
+    "Pages",
+    PAGES,
+    key="page",
+    label_visibility="collapsed",
+    on_change=reset_page_scroll,
+)
+
+if st.session_state.pop("scroll_to_page_top", False):
+    components.html(
+        """
+        <script>
+        const app = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+        if (app) app.scrollTo(0, 0);
+        window.parent.scrollTo(0, 0);
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 if page == "Schedule":
     schedule_page()
@@ -756,7 +793,7 @@ elif page == "Add Client":
     add_client_page()
 elif page == "Clients":
     clients_page()
-elif page == "Draft Schedule":
+elif page == "Review Changes":
     draft_page()
 else:
     settings_page()

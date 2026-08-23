@@ -19,5 +19,5 @@ def test_user_facing_words_are_updated() -> None:
 
 def test_all_pages_exist() -> None:
     app_text = (ROOT / "app.py").read_text(encoding="utf-8")
-    for page in ["Schedule", "Add Client", "Clients", "Draft Schedule", "Settings"]:
+    for page in ["Schedule", "Add Client", "Clients", "Review Changes", "Settings"]:
         assert page in app_text
