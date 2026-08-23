@@ -64,10 +64,13 @@ st.markdown(
     }
     .stApp { background: var(--wash); color: var(--ink); }
     [data-testid="stHeader"] {
-        height: 0; min-height: 0; background: transparent; border: 0;
-        pointer-events: none; overflow: visible !important;
+        background: transparent !important; border: 0; box-shadow: none;
+        pointer-events: none;
     }
-    [data-testid="stToolbar"] { display: none; }
+    [data-testid="stToolbar"] {
+        display: flex !important; background: transparent !important; pointer-events: none;
+    }
+    [data-testid="stHeaderActionElements"] { display: none !important; }
     [data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapsedControl"],
     [data-testid="stSidebarCollapseButton"] {
@@ -76,7 +79,6 @@ st.markdown(
     }
     [data-testid="stExpandSidebarButton"],
     [data-testid="stSidebarCollapsedControl"] {
-        position: fixed !important; top: .5rem; left: .5rem;
         background: var(--panel); border: 1px solid var(--line); border-radius: 9px;
         box-shadow: 0 3px 8px rgba(48, 73, 97, .14);
     }
