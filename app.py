@@ -305,11 +305,8 @@ def render_selected_client_details() -> None:
     assignments = database.get_current_assignments(DB_PATH).get(client_id, [])
 
     st.subheader(client["name"])
-    st.markdown("**Location**")
-    st.write(client["location"] or "No location added")
-    st.markdown("**Notes**")
-    st.write(client["notes"] or "No notes added")
-    st.markdown("**Appointments**")
+    st.markdown(f"**Location:** {client['location'] or 'No location added'}")
+    st.markdown(f"**Notes:** {client['notes'] or 'No notes added'}")
     if not assignments:
         st.info("This client is waiting for a time.")
     for assignment in sorted(
@@ -319,7 +316,7 @@ def render_selected_client_details() -> None:
             SLOT_BY_KEY[item["slot_key"]].time_index,
         ),
     ):
-        st.write(SLOT_KEY_TO_LABEL[assignment["slot_key"]])
+        st.markdown(f"**Appointments:** {SLOT_KEY_TO_LABEL[assignment['slot_key']]}")
         label = "Unlock" if assignment["locked"] else "Lock"
         if st.button(label, key=f"lock_{assignment['id']}"):
             database.set_assignment_lock(
