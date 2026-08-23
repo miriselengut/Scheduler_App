@@ -156,6 +156,10 @@ st.markdown(
     .st-key-client_actions, .st-key-client_delete_section, .st-key-client_edit_section {
         width: 100%; max-width: 48rem; margin-inline: auto;
     }
+    .st-key-client_edit_section {
+        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+        padding: 1rem; box-shadow: 0 6px 18px rgba(48, 73, 97, .1);
+    }
     .st-key-draft_actions, .st-key-draft_discard_section {
         width: 100%; max-width: 38rem; margin-inline: auto;
     }
@@ -731,27 +735,30 @@ def draft_page() -> None:
         )
         st.dataframe(styled_changes, hide_index=True, use_container_width=True)
 
-    with st.container(key="draft_actions"):
-        a1, a2 = st.columns(2)
-        if a1.button("Approve", type="primary", use_container_width=True):
-            try:
-                result = service.approve_draft(DB_PATH)
-                if result.success:
-                    st.session_state.pop("confirm_discard_draft", None)
-                    st.session_state.pending_page = "Schedule"
-                    st.session_state.draft_approved_toast = True
-                    st.rerun()
-                    return
-                else:
-                    show_result(result)
-            except Exception as exc:
-                st.error(str(exc))
-        if a2.button(
-            "Discard",
-            key="discard_entire_draft",
-            use_container_width=True,
-        ):
-            st.session_state.confirm_discard_draft = True
+    draft_actions_placeholder = st.empty()
+    with draft_actions_placeholder.container():
+        with st.container(key="draft_actions"):
+            a1, a2 = st.columns(2)
+            if a1.button("Approve", type="primary", use_container_width=True):
+                try:
+                    result = service.approve_draft(DB_PATH)
+                    if result.success:
+                        st.session_state.pop("confirm_discard_draft", None)
+                        st.session_state.pending_page = "Schedule"
+                        st.session_state.draft_approved_toast = True
+                        draft_actions_placeholder.empty()
+                        st.rerun()
+                        return
+                    else:
+                        show_result(result)
+                except Exception as exc:
+                    st.error(str(exc))
+            if a2.button(
+                "Discard",
+                key="discard_entire_draft",
+                use_container_width=True,
+            ):
+                st.session_state.confirm_discard_draft = True
 
     if st.session_state.get("confirm_discard_draft"):
         with st.container(key="draft_discard_section"):
@@ -828,6 +835,11 @@ def settings_page() -> None:
 
 def reset_page_scroll() -> None:
     st.session_state.scroll_to_page_top = True
+    if st.session_state.get("page") != "Clients":
+        st.session_state.pop("edit_client_id", None)
+        st.session_state.pop("delete_client_id", None)
+    if st.session_state.get("page") != "Review Changes":
+        st.session_state.pop("confirm_discard_draft", None)
 
 
 PAGES = ["Schedule", "Add Client", "Clients", "Review Changes", "Settings"]
