@@ -63,7 +63,18 @@ st.markdown(
         --danger: #a94f58;
     }
     .stApp { background: var(--wash); color: var(--ink); }
-    [data-testid="stHeader"], [data-testid="stToolbar"] { display: none; }
+    [data-testid="stHeader"] {
+        height: 0; min-height: 0; background: transparent; border: 0;
+        pointer-events: none;
+    }
+    [data-testid="stToolbar"] { display: none; }
+    [data-testid="stSidebarCollapsedControl"],
+    [data-testid="stSidebarCollapseButton"] {
+        display: flex !important; pointer-events: auto; position: relative; z-index: 1000;
+    }
+    [data-testid="stSidebarCollapsedControl"] {
+        position: fixed; top: .5rem; left: .5rem;
+    }
     .block-container { max-width: 1500px; padding-top: 1rem; padding-bottom: 3rem; }
     h1, h2, h3 { color: var(--ink); letter-spacing: -0.02em; }
     [data-testid="stSidebar"] { background: #eaf1f7; border-right: 1px solid var(--line); }
@@ -478,6 +489,8 @@ def schedule_page() -> None:
                     "to reduce gaps and preserve free evenings. Review and approve the "
                     "draft on the **Review Changes** page before anything takes effect."
                 )
+            elif result.success:
+                st.success(f"**{result.category}:** {result.message}")
             else:
                 show_result(result)
         except Exception as exc:
