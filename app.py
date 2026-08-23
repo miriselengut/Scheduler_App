@@ -69,9 +69,17 @@ st.markdown(
     [data-testid="stSidebar"] label[data-baseweb="radio"] {
         width: 100%; padding: .55rem .7rem; border-radius: 9px;
     }
-    [data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child { display: none; }
+    [data-testid="stSidebar"] [role="radiogroup"] label > div:first-child,
+    [data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child {
+        display: none !important;
+    }
     [data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) {
-        background: var(--blue-soft); color: var(--blue-dark); font-weight: 700;
+        background: var(--blue); color: white; font-weight: 700;
+    }
+    [data-testid="stSidebar"] label[data-baseweb="radio"]:has(input:checked) p { color: white; }
+    div[data-baseweb="tab-highlight"] { display: none; }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: var(--blue-soft); border-radius: 8px 8px 0 0; color: var(--blue-dark);
     }
     div[data-testid="stForm"], div[data-testid="stExpander"], .clean-card {
         background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
@@ -79,14 +87,22 @@ st.markdown(
     }
     .muted { color: var(--muted); }
     .schedule-time { color: var(--muted); font-weight: 650; padding-top: .55rem; }
-    .empty-slot { height: 2.65rem; border: 1px dashed #d7e1ea; border-radius: 9px;
-        background: #f9fbfd; }
+    .empty-slot { height: 2.65rem; border: 1px dashed #cfd9e2; border-radius: 9px;
+        background: var(--gray-soft); }
     .section-gap { height: .75rem; }
     .status-pill { display: inline-block; padding: .28rem .62rem; border-radius: 999px;
         background: var(--blue-soft); color: var(--blue-dark); font-size: .82rem; font-weight: 700; }
     div.stButton > button { border-radius: 9px; border: 1px solid #cddae6; }
     div.stButton > button[kind="primary"] { background: var(--blue-dark); border-color: var(--blue-dark); }
-    .st-key-schedule_grid div.stButton > button { height: 2.65rem; min-height: 2.65rem; }
+    .st-key-schedule_grid div.stButton > button {
+        height: 2.65rem; min-height: 2.65rem; background: var(--panel);
+        border-color: #b9cbd9; color: var(--ink); font-weight: 650;
+        box-shadow: 0 2px 5px rgba(48, 73, 97, .1);
+    }
+    div[class*="st-key-draft_current_"] button:disabled {
+        background: var(--panel); border-color: #b9cbd9; color: var(--ink);
+        box-shadow: 0 2px 5px rgba(48, 73, 97, .1); opacity: 1;
+    }
     .st-key-client_actions, .st-key-client_delete_section, .st-key-client_edit_section {
         width: 100%; max-width: 48rem; margin-inline: auto;
     }
@@ -110,6 +126,10 @@ st.markdown(
     div[data-baseweb="textarea"], div[data-baseweb="select"] > div {
         background-color: var(--panel);
     }
+    div[data-baseweb="input"], div[data-baseweb="textarea"],
+    div[data-baseweb="select"] > div {
+        border-color: #b9cbd9; box-shadow: 0 1px 3px rgba(48, 73, 97, .08);
+    }
     div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea {
         background-color: transparent;
     }
@@ -117,15 +137,23 @@ st.markdown(
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
     .availability-day { text-align: center; font-weight: 700; padding: .45rem 0 .55rem; }
+    .availability-legend { display: flex; flex-wrap: wrap; gap: .45rem 1rem;
+        margin: .25rem 0 .7rem; color: var(--muted); font-size: .82rem; }
+    .availability-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+    .availability-swatch { width: .8rem; height: .8rem; border-radius: 4px;
+        display: inline-block; border: 1px solid #c7d5e1; }
+    .availability-swatch.best { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .availability-swatch.works { background: var(--blue-soft); border-color: #b5cde0; }
+    .availability-swatch.unavailable { background: var(--panel); border-style: dashed; }
     .st-key-add_availability_grid div.stButton > button { min-height: 2.65rem; }
     .st-key-add_availability_grid div.stButton > button[kind="primary"] {
-        background: #3f5368; border-color: #3f5368; color: white;
+        background: var(--blue-dark); border-color: var(--blue-dark); color: white;
     }
     .st-key-add_availability_grid div.stButton > button[kind="secondary"] {
-        background: #aebfce; border-color: #9eafbd; color: #1f3040;
+        background: var(--blue-soft); border-color: #b5cde0; color: var(--blue-dark);
     }
     .st-key-add_availability_grid div.stButton > button[kind="tertiary"] {
-        background: #f7f9fb; border: 1px solid #dce5ee; color: #6f7f91;
+        background: var(--panel); border: 1px dashed #c7d5e1; color: var(--muted);
     }
     </style>
     """,
@@ -222,6 +250,16 @@ def render_add_availability_grid() -> dict[str, str]:
 
     st.caption(
         "Click a box to cycle through **Not available**, **Best time**, and **Also works**."
+    )
+    st.markdown(
+        """
+        <div class="availability-legend" aria-label="Availability colors">
+            <span><i class="availability-swatch best"></i>Best time</span>
+            <span><i class="availability-swatch works"></i>Also works</span>
+            <span><i class="availability-swatch unavailable"></i>Not available</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
     values = st.session_state[state_key]
     button_types = {
