@@ -132,7 +132,10 @@ st.markdown(
         background: var(--blue-dark); border-color: var(--blue-dark); color: white;
         box-shadow: 0 4px 10px rgba(48, 73, 97, .2);
     }
-    .st-key-save_client button { box-shadow: 0 4px 10px rgba(48, 73, 97, .2); }
+    .st-key-save_client button {
+        min-height: 3.1rem; padding: .7rem 1.35rem; font-size: 1rem;
+        box-shadow: 0 4px 10px rgba(48, 73, 97, .2);
+    }
     .st-key-save_settings button { box-shadow: 0 4px 10px rgba(48, 73, 97, .2); }
     .st-key-schedule_grid div.stButton > button {
         height: 2.65rem; min-height: 2.65rem; background: var(--panel);
@@ -184,13 +187,13 @@ st.markdown(
     div[class*="st-key-add_client_"][data-testid="stTextArea"] div[data-baseweb="textarea"],
     div[class*="st-key-add_client_"] div[data-baseweb="input"],
     div[class*="st-key-add_client_"] div[data-baseweb="textarea"] {
-        background: #ffffff !important; border-color: #d2dee8 !important;
+        background: var(--gray-soft) !important; border-color: #d2dee8 !important;
         box-shadow: 0 4px 10px rgba(48, 73, 97, .16) !important;
     }
     div[class*="st-key-add_client_"] div[data-baseweb="base-input"],
     div[class*="st-key-add_client_"] input,
     div[class*="st-key-add_client_"] textarea {
-        background-color: #ffffff !important;
+        background-color: var(--gray-soft) !important;
     }
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
