@@ -113,6 +113,15 @@ st.markdown(
         border-color: #b9cbd9; color: var(--ink); font-weight: 650;
         box-shadow: 0 2px 5px rgba(48, 73, 97, .1);
     }
+    div[class*="st-key-schedule_row_"] { min-height: 2.65rem; margin-bottom: .35rem; }
+    div[class*="st-key-schedule_row_"] div[data-testid="stHorizontalBlock"] {
+        min-height: 2.65rem; align-items: center;
+    }
+    div[class*="st-key-schedule_row_"] div.stButton { height: 2.65rem; margin: 0; }
+    div[class*="st-key-schedule_row_"] div.stButton > button,
+    div[class*="st-key-schedule_row_"] .empty-slot {
+        height: 2.65rem; min-height: 2.65rem; margin: 0;
+    }
     div[class*="st-key-draft_current_"] button:disabled {
         background: var(--panel); border-color: #b9cbd9; color: var(--ink);
         box-shadow: 0 2px 5px rgba(48, 73, 97, .1); opacity: 1;
@@ -345,39 +354,40 @@ def render_schedule_grid(
     for index, day in enumerate(DAYS, start=1):
         header[index].markdown(f"**{day}**")
 
-    for time_label in TIMES:
+    for time_index, time_label in enumerate(TIMES):
         if time_label == EVENING_TIMES[0]:
             st.markdown('<div class="section-gap"></div>', unsafe_allow_html=True)
             st.caption("Evening")
-        columns = st.columns([1.05, 1, 1, 1, 1, 1])
-        columns[0].markdown(
-            f'<div class="schedule-time">{time_label}</div>', unsafe_allow_html=True
-        )
-        for day_index, day in enumerate(DAYS, start=1):
-            slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
-            assignment = lookup.get(slot_key)
-            if not assignment:
-                columns[day_index].markdown(
-                    '<div class="empty-slot"></div>', unsafe_allow_html=True
-                )
-                continue
-            name = assignment["name"]
-            if clickable:
-                if columns[day_index].button(
-                    name,
-                    key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
-                    use_container_width=True,
-                ):
-                    st.session_state.selected_schedule_client_id = assignment[
-                        "client_id"
-                    ]
-            else:
-                columns[day_index].button(
-                    name,
-                    key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
-                    use_container_width=True,
-                    disabled=True,
-                )
+        with st.container(key=f"schedule_row_{key_prefix}_{time_index}"):
+            columns = st.columns([1.05, 1, 1, 1, 1, 1])
+            columns[0].markdown(
+                f'<div class="schedule-time">{time_label}</div>', unsafe_allow_html=True
+            )
+            for day_index, day in enumerate(DAYS, start=1):
+                slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
+                assignment = lookup.get(slot_key)
+                if not assignment:
+                    columns[day_index].markdown(
+                        '<div class="empty-slot"></div>', unsafe_allow_html=True
+                    )
+                    continue
+                name = assignment["name"]
+                if clickable:
+                    if columns[day_index].button(
+                        name,
+                        key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
+                        use_container_width=True,
+                    ):
+                        st.session_state.selected_schedule_client_id = assignment[
+                            "client_id"
+                        ]
+                else:
+                    columns[day_index].button(
+                        name,
+                        key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
+                        use_container_width=True,
+                        disabled=True,
+                    )
 
 
 def clear_selected_schedule_client() -> None:
