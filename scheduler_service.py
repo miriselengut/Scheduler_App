@@ -267,13 +267,12 @@ def _action_message(
             opening = f"{focus_name}'s proposed schedule is {times_text}."
 
     if other_moved:
-        movement = (
-            f"{len(other_moved)} other client schedule(s) need to move. "
-            "Review every change before approving the draft."
-        )
+        movement = f"{len(other_moved)} other client schedule(s) need to move."
+        review = "Review every change before approving the draft."
     else:
         movement = "No other appointments need to move."
-    return f"{opening} {movement} {evening_text}"
+        review = ""
+    return f"{opening} {movement} {evening_text} {review}".strip()
 
 
 def _solve_current_plus_client(

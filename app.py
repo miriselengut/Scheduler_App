@@ -748,6 +748,16 @@ def draft_page() -> None:
         if current_by_slot.get(slot_key, {}).get("client_id")
         != assignment["client_id"]
     }
+    changes_frame = schedule_change_table()
+    st.subheader("What will change")
+    if changes_frame.empty:
+        st.info("No appointment times need to change.")
+    else:
+        styled_changes = changes_frame.style.set_properties(
+            subset=["After approval"], background_color="#e8f1f8"
+        )
+        st.dataframe(styled_changes, hide_index=True, use_container_width=True)
+
     with st.container(key="draft_actions"):
         a1, a2 = st.columns(2)
         if a1.button("Approve", type="primary", use_container_width=True):
@@ -784,16 +794,6 @@ def draft_page() -> None:
                 st.session_state.pop("confirm_discard_draft", None)
                 st.rerun()
 
-    changes_frame = schedule_change_table()
-    st.subheader("What will change")
-    if changes_frame.empty:
-        st.info("No appointment times need to change.")
-    else:
-        styled_changes = changes_frame.style.set_properties(
-            subset=["After approval"], background_color="#e8f1f8"
-        )
-        st.dataframe(styled_changes, hide_index=True, use_container_width=True)
-
     approved_tab, draft_tab = st.tabs(
         ["Current", "New schedule"], default="New schedule"
     )
@@ -815,6 +815,7 @@ def draft_page() -> None:
 
 def settings_page() -> None:
     st.title("Settings")
+    st.subheader("Evenings Free")
     current_first, current_second = database.get_preferred_evenings(DB_PATH)
     st.write(
         "Choose the two evenings you most want to keep free. The scheduler protects these after avoiding unnecessary appointment moves."
