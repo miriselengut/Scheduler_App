@@ -11,10 +11,8 @@ import scheduler_service as service
 from constants import (
     AFTERNOON_TIMES,
     APP_BUILD,
-    AVAILABILITY_OPTIONS,
     DAYS,
     EVENING_TIMES,
-    LABEL_TO_PREFERENCE,
     PREFERENCE_LABELS,
     PREFERENCE_UNAVAILABLE,
     SLOT_BY_KEY,
@@ -211,14 +209,18 @@ st.markdown(
     .availability-swatch.best { background: var(--blue-dark); border-color: var(--blue-dark); }
     .availability-swatch.works { background: var(--blue-soft); border-color: #b5cde0; }
     .availability-swatch.unavailable { background: var(--panel); border-style: dashed; }
-    .st-key-add_availability_grid div.stButton > button { min-height: 2.65rem; }
-    .st-key-add_availability_grid div.stButton > button[kind="primary"] {
+    .st-key-add_availability_grid div.stButton > button,
+    .st-key-edit_availability_grid div.stButton > button { min-height: 2.65rem; }
+    .st-key-add_availability_grid div.stButton > button[kind="primary"],
+    .st-key-edit_availability_grid div.stButton > button[kind="primary"] {
         background: var(--blue-dark); border-color: var(--blue-dark); color: white;
     }
-    .st-key-add_availability_grid div.stButton > button[kind="secondary"] {
+    .st-key-add_availability_grid div.stButton > button[kind="secondary"],
+    .st-key-edit_availability_grid div.stButton > button[kind="secondary"] {
         background: var(--blue-soft); border-color: #b5cde0; color: var(--blue-dark);
     }
-    .st-key-add_availability_grid div.stButton > button[kind="tertiary"] {
+    .st-key-add_availability_grid div.stButton > button[kind="tertiary"],
+    .st-key-edit_availability_grid div.stButton > button[kind="tertiary"] {
         background: var(--panel); border: 1px dashed #c7d5e1; color: var(--muted);
     }
     </style>
@@ -242,19 +244,6 @@ def show_result(result: service.ActionResult) -> None:
         st.write(result.message)
 
 
-def availability_dataframe(saved: dict[str, str] | None = None) -> pd.DataFrame:
-    saved = saved or {}
-    rows: list[dict] = []
-    for time_label in TIMES:
-        row = {"Time": time_label}
-        for day in DAYS:
-            slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
-            preference = saved.get(slot_key, PREFERENCE_UNAVAILABLE)
-            row[day] = PREFERENCE_LABELS[preference]
-        rows.append(row)
-    return pd.DataFrame(rows)
-
-
 def split_client_name(name: str) -> tuple[str, str]:
     parts = name.strip().split(maxsplit=1)
     return (parts[0], parts[1] if len(parts) > 1 else "") if parts else ("", "")
@@ -264,54 +253,35 @@ def combine_client_name(first_name: str, last_name: str) -> str:
     return " ".join(part.strip() for part in (first_name, last_name) if part.strip())
 
 
-def render_availability_editor(
+def render_availability_intro() -> None:
+    st.markdown(
+        """
+        <div class="availability-intro">
+            <span class="availability-intro-title">Weekly availability</span>
+            <span class="availability-intro-note">Click a box to cycle through:</span>
+            <span class="availability-options" aria-label="Availability colors">
+                <span><i class="availability-swatch best"></i>Best time</span>,
+                <span><i class="availability-swatch works"></i>Also works</span>,
+                <span><i class="availability-swatch unavailable"></i>Not available</span>.
+            </span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_availability_grid(
     *,
-    saved: dict[str, str] | None,
-    key: str,
+    state_key: str,
+    widget_prefix: str,
+    container_key: str,
+    saved: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    st.caption(
-        "Choose **Best time** or **Also works**. Leave all other boxes as **Not available**."
-    )
-    frame = availability_dataframe(saved)
-    edited = st.data_editor(
-        frame,
-        key=key,
-        hide_index=True,
-        use_container_width=True,
-        num_rows="fixed",
-        disabled=["Time"],
-        column_config={
-            "Time": st.column_config.TextColumn("Time", width="small"),
-            **{
-                day: st.column_config.SelectboxColumn(
-                    day,
-                    options=AVAILABILITY_OPTIONS,
-                    required=True,
-                    width="medium",
-                )
-                for day in DAYS
-            },
-        },
-    )
-
-    availability: dict[str, str] = {}
-    for _, row in edited.iterrows():
-        time_label = str(row["Time"])
-        for day in DAYS:
-            label = str(row[day])
-            preference = LABEL_TO_PREFERENCE[label]
-            if preference != PREFERENCE_UNAVAILABLE:
-                slot_key = SLOT_LABEL_TO_KEY[f"{day} {time_label}"]
-                availability[slot_key] = preference
-    return availability
-
-
-def render_add_availability_grid() -> dict[str, str]:
-    """Render the Add Client availability as color-coded, cycling buttons."""
-    state_key = "add_availability_values"
+    """Render color-coded, cycling availability buttons."""
     if state_key not in st.session_state:
         st.session_state[state_key] = {
-            slot_key: PREFERENCE_UNAVAILABLE for slot_key in SLOT_BY_KEY
+            slot_key: (saved or {}).get(slot_key, PREFERENCE_UNAVAILABLE)
+            for slot_key in SLOT_BY_KEY
         }
 
     values = st.session_state[state_key]
@@ -321,7 +291,7 @@ def render_add_availability_grid() -> dict[str, str]:
         "secondary": "secondary",
     }
 
-    with st.container(key="add_availability_grid"):
+    with st.container(key=container_key):
         header = st.columns([1.05, 1, 1, 1, 1, 1])
         header[0].markdown('<div class="availability-day">Time</div>', unsafe_allow_html=True)
         for index, day in enumerate(DAYS, start=1):
@@ -339,11 +309,11 @@ def render_add_availability_grid() -> dict[str, str]:
                 preference = values[slot_key]
                 columns[day_index].button(
                     PREFERENCE_LABELS[preference],
-                    key=f"add_slot_{slot_key}",
+                    key=f"{widget_prefix}_{slot_key}",
                     type=button_types[preference],
                     use_container_width=True,
-                    on_click=cycle_add_availability,
-                    args=(slot_key,),
+                    on_click=cycle_availability,
+                    args=(state_key, slot_key),
                 )
 
     return {
@@ -353,9 +323,9 @@ def render_add_availability_grid() -> dict[str, str]:
     }
 
 
-def cycle_add_availability(slot_key: str) -> None:
-    """Advance one Add Client availability button before Streamlit reruns."""
-    values = st.session_state["add_availability_values"]
+def cycle_availability(state_key: str, slot_key: str) -> None:
+    """Advance one availability button before Streamlit reruns."""
+    values = st.session_state[state_key]
     cycle = {
         PREFERENCE_UNAVAILABLE: "optimal",
         "optimal": "secondary",
@@ -535,21 +505,12 @@ def add_client_page() -> None:
         key="add_client_sessions",
     )
     notes = st.text_area("Notes", height=90, key="add_client_notes")
-    st.markdown(
-        """
-        <div class="availability-intro">
-            <span class="availability-intro-title">Weekly availability</span>
-            <span class="availability-intro-note">Click a box to cycle through:</span>
-            <span class="availability-options" aria-label="Availability colors">
-                <span><i class="availability-swatch best"></i>Best time</span>,
-                <span><i class="availability-swatch works"></i>Also works</span>,
-                <span><i class="availability-swatch unavailable"></i>Not available</span>.
-            </span>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    render_availability_intro()
+    availability = render_availability_grid(
+        state_key="add_availability_values",
+        widget_prefix="add_slot",
+        container_key="add_availability_grid",
     )
-    availability = render_add_availability_grid()
     submitted = st.button(
         "Save client and find a time", key="save_client", type="primary"
     )
@@ -579,25 +540,37 @@ def client_edit_form(client: dict) -> None:
     st.subheader(f"Edit {client['name']}")
     st.caption("The approved client information stays unchanged until the draft is approved.")
 
-    with st.form(f"edit_client_{client_id}"):
-        c1, c2, c3 = st.columns(3)
-        first_name = c1.text_input("First name", value=first_name)
-        last_name = c2.text_input("Last name", value=last_name)
-        location = c3.text_input("Location", value=client["location"])
-        sessions = st.number_input(
-            "Sessions each week",
-            min_value=1,
-            max_value=5,
-            value=int(client["sessions_per_week"]),
-            step=1,
-        )
-        notes = st.text_area("Notes", value=client["notes"], height=90)
-        st.subheader("Weekly availability")
-        availability = render_availability_editor(
-            saved=saved_availability,
-            key=f"edit_availability_{client_id}",
-        )
-        save = st.form_submit_button("Save changes to draft", type="primary")
+    c1, c2, c3 = st.columns(3)
+    first_name = c1.text_input(
+        "First name", value=first_name, key=f"edit_first_name_{client_id}"
+    )
+    last_name = c2.text_input(
+        "Last name", value=last_name, key=f"edit_last_name_{client_id}"
+    )
+    location = c3.text_input(
+        "Location", value=client["location"], key=f"edit_location_{client_id}"
+    )
+    sessions = st.number_input(
+        "Sessions each week",
+        min_value=1,
+        max_value=5,
+        value=int(client["sessions_per_week"]),
+        step=1,
+        key=f"edit_sessions_{client_id}",
+    )
+    notes = st.text_area(
+        "Notes", value=client["notes"], height=90, key=f"edit_notes_{client_id}"
+    )
+    render_availability_intro()
+    availability = render_availability_grid(
+        state_key=f"edit_availability_values_{client_id}",
+        widget_prefix=f"edit_slot_{client_id}",
+        container_key="edit_availability_grid",
+        saved=saved_availability,
+    )
+    save = st.button(
+        "Save changes to draft", key=f"save_edit_{client_id}", type="primary"
+    )
 
     if save:
         try:
@@ -764,9 +737,11 @@ def draft_page() -> None:
             try:
                 result = service.approve_draft(DB_PATH)
                 if result.success:
+                    st.session_state.pop("confirm_discard_draft", None)
                     st.session_state.pending_page = "Schedule"
                     st.session_state.draft_approved_toast = True
                     st.rerun()
+                    return
                 else:
                     show_result(result)
             except Exception as exc:
