@@ -304,14 +304,18 @@ def render_selected_client_details() -> None:
     assignments = database.get_current_assignments(DB_PATH).get(client_id, [])
 
     st.subheader(client["name"])
-    left, right = st.columns([1.1, 1.9])
+    left, right = st.columns([1.9, 1.1])
     with left:
         st.markdown("**Location**")
         st.write(client["location"] or "No location added")
         st.markdown("**Notes**")
         st.write(client["notes"] or "No notes added")
     with right:
-        st.markdown("**Appointments and locks**")
+        st.markdown("**Lock**")
+        st.caption(
+            "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
+        )
+        st.markdown("**Appointments**")
         if not assignments:
             st.info("This client is waiting for a time.")
         for assignment in sorted(
@@ -329,9 +333,6 @@ def render_selected_client_details() -> None:
                     assignment["id"], not bool(assignment["locked"]), DB_PATH
                 )
                 st.rerun()
-        st.caption(
-            "A locked appointment stays at that exact time. Editing this same client can move it, and the new time will remain locked."
-        )
 
 
 def schedule_page() -> None:
