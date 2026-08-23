@@ -80,6 +80,7 @@ st.markdown(
         background: var(--blue-soft); color: var(--blue-dark); font-size: .82rem; font-weight: 700; }
     div.stButton > button { border-radius: 9px; border: 1px solid #cddae6; }
     div.stButton > button[kind="primary"] { background: var(--blue-dark); border-color: var(--blue-dark); }
+    .st-key-schedule_grid div.stButton > button { height: 2.65rem; min-height: 2.65rem; }
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
@@ -346,7 +347,8 @@ def schedule_page() -> None:
     assignments = database.get_current_assignments(DB_PATH)
     if not assignments:
         st.info("No appointments are scheduled yet. Add the first client to begin.")
-    render_schedule_grid(assignments, key_prefix="approved", clickable=True)
+    with st.container(key="schedule_grid"):
+        render_schedule_grid(assignments, key_prefix="approved", clickable=True)
     if st.session_state.get("selected_schedule_client_id"):
         render_selected_client_details()
 
