@@ -81,6 +81,19 @@ st.markdown(
     div.stButton > button { border-radius: 9px; border: 1px solid #cddae6; }
     div.stButton > button[kind="primary"] { background: var(--blue-dark); border-color: var(--blue-dark); }
     .st-key-schedule_grid div.stButton > button { height: 2.65rem; min-height: 2.65rem; }
+    .st-key-client_actions, .st-key-client_delete_section, .st-key-client_edit_section {
+        width: 100%; max-width: 48rem; margin-inline: auto;
+    }
+    .st-key-draft_actions, .st-key-draft_discard_section {
+        width: 100%; max-width: 38rem; margin-inline: auto;
+    }
+    div[data-baseweb="input"], div[data-baseweb="base-input"],
+    div[data-baseweb="textarea"], div[data-baseweb="select"] > div {
+        background-color: var(--panel);
+    }
+    div[data-baseweb="input"] input, div[data-baseweb="textarea"] textarea {
+        background-color: transparent;
+    }
     div[data-testid="stDataEditor"] { background: white; border-radius: 12px; overflow: hidden; }
     .draft-note { background: #eef5fa; border-left: 4px solid var(--blue); padding: .8rem 1rem;
         border-radius: 8px; color: var(--ink); }
@@ -474,40 +487,45 @@ def clients_page() -> None:
     st.markdown("**Notes**")
     st.write(client["notes"] or "No notes added")
 
-    b1, b2 = st.columns(2)
-    if b1.button("Edit client", type="primary", use_container_width=True):
-        st.session_state.edit_client_id = int(client["id"])
-    if b2.button("Delete client", use_container_width=True):
-        st.session_state.delete_client_id = int(client["id"])
+    with st.container(key="client_actions"):
+        b1, b2 = st.columns(2)
+        if b1.button("Edit client", type="primary", use_container_width=True):
+            st.session_state.edit_client_id = int(client["id"])
+        if b2.button("Delete client", use_container_width=True):
+            st.session_state.delete_client_id = int(client["id"])
 
     if st.session_state.get("delete_client_id") == int(client["id"]):
-        st.warning(
-            f"Delete {client['name']}? This will permanently remove the client and all appointments when the draft is approved."
-        )
-        confirm = st.checkbox(
-            "I understand that this client will be permanently deleted.",
-            key=f"confirm_delete_{client['id']}",
-        )
-        d1, d2 = st.columns(2)
-        if d1.button(
-            "Add delete to draft",
-            disabled=not confirm,
-            type="primary",
-            key=f"delete_yes_{client['id']}",
-        ):
-            try:
-                show_result(
-                    service.delete_client(client_id=int(client["id"]), db_path=DB_PATH)
-                )
+        with st.container(key="client_delete_section"):
+            st.warning(
+                f"Delete {client['name']}? This will permanently remove the client and all appointments when the draft is approved."
+            )
+            confirm = st.checkbox(
+                "I understand that this client will be permanently deleted.",
+                key=f"confirm_delete_{client['id']}",
+            )
+            d1, d2 = st.columns(2)
+            if d1.button(
+                "Add delete to draft",
+                disabled=not confirm,
+                type="primary",
+                key=f"delete_yes_{client['id']}",
+            ):
+                try:
+                    show_result(
+                        service.delete_client(
+                            client_id=int(client["id"]), db_path=DB_PATH
+                        )
+                    )
+                    st.session_state.pop("delete_client_id", None)
+                except Exception as exc:
+                    st.error(str(exc))
+            if d2.button("Cancel", key=f"delete_no_{client['id']}"):
                 st.session_state.pop("delete_client_id", None)
-            except Exception as exc:
-                st.error(str(exc))
-        if d2.button("Cancel", key=f"delete_no_{client['id']}"):
-            st.session_state.pop("delete_client_id", None)
-            st.rerun()
+                st.rerun()
 
     if st.session_state.get("edit_client_id") == int(client["id"]):
-        client_edit_form(client)
+        with st.container(key="client_edit_section"):
+            client_edit_form(client)
 
 
 def _effective_draft_names() -> dict[int, str]:
@@ -603,26 +621,30 @@ def draft_page() -> None:
         )
 
     st.divider()
-    a1, a2 = st.columns(2)
-    if a1.button("Approve entire draft", type="primary", use_container_width=True):
-        try:
-            show_result(service.approve_draft(DB_PATH))
-            st.rerun()
-        except Exception as exc:
-            st.error(str(exc))
-    if a2.button("Discard entire draft", use_container_width=True):
-        st.session_state.confirm_discard_draft = True
+    with st.container(key="draft_actions"):
+        a1, a2 = st.columns(2)
+        if a1.button("Approve entire draft", type="primary", use_container_width=True):
+            try:
+                show_result(service.approve_draft(DB_PATH))
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+        if a2.button("Discard entire draft", use_container_width=True):
+            st.session_state.confirm_discard_draft = True
 
     if st.session_state.get("confirm_discard_draft"):
-        st.warning("Discard every draft change? The approved schedule will stay exactly the same.")
-        c1, c2 = st.columns(2)
-        if c1.button("Yes, discard draft", type="primary"):
-            show_result(service.discard_draft(DB_PATH))
-            st.session_state.pop("confirm_discard_draft", None)
-            st.rerun()
-        if c2.button("Keep draft"):
-            st.session_state.pop("confirm_discard_draft", None)
-            st.rerun()
+        with st.container(key="draft_discard_section"):
+            st.warning(
+                "Discard every draft change? The approved schedule will stay exactly the same."
+            )
+            c1, c2 = st.columns(2)
+            if c1.button("Yes, discard draft", type="primary"):
+                show_result(service.discard_draft(DB_PATH))
+                st.session_state.pop("confirm_discard_draft", None)
+                st.rerun()
+            if c2.button("Keep draft"):
+                st.session_state.pop("confirm_discard_draft", None)
+                st.rerun()
 
 
 def settings_page() -> None:
