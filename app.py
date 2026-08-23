@@ -142,8 +142,10 @@ st.markdown(
         background: var(--danger); border-color: var(--danger); color: white;
     }
     .st-key-draft_proposed div.stButton > button:disabled {
+        background: var(--panel); border-color: #b9cbd9; color: var(--ink); opacity: 1;
+    }
+    .st-key-draft_proposed div[class*="st-key-changed_schedule_slot_"] button:disabled {
         background: var(--blue-soft); border-color: #cbddeb; color: var(--blue-dark);
-        opacity: 1;
     }
     div[data-baseweb="input"], div[data-baseweb="base-input"],
     div[data-baseweb="textarea"], div[data-baseweb="select"] > div {
@@ -347,6 +349,7 @@ def render_schedule_grid(
     *,
     key_prefix: str,
     clickable: bool,
+    highlighted_slots: set[str] | None = None,
 ) -> None:
     lookup = assignment_lookup(assignments)
     header = st.columns([1.05, 1, 1, 1, 1, 1])
@@ -372,10 +375,16 @@ def render_schedule_grid(
                     )
                     continue
                 name = assignment["name"]
+                button_key = f"{key_prefix}_{slot_key}_{assignment['client_id']}"
+                if highlighted_slots and slot_key in highlighted_slots:
+                    button_key = (
+                        f"changed_schedule_slot_{key_prefix}_{slot_key}_"
+                        f"{assignment['client_id']}"
+                    )
                 if clickable:
                     if columns[day_index].button(
                         name,
-                        key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
+                        key=button_key,
                         use_container_width=True,
                     ):
                         st.session_state.selected_schedule_client_id = assignment[
@@ -384,7 +393,7 @@ def render_schedule_grid(
                 else:
                     columns[day_index].button(
                         name,
-                        key=f"{key_prefix}_{slot_key}_{assignment['client_id']}",
+                        key=button_key,
                         use_container_width=True,
                         disabled=True,
                     )
@@ -717,6 +726,14 @@ def draft_page() -> None:
         return
 
     draft_assignments = database.get_draft_assignments(DB_PATH)
+    current_assignments = database.get_current_assignments(DB_PATH)
+    current_by_slot = assignment_lookup(current_assignments)
+    changed_proposed_slots = {
+        slot_key
+        for slot_key, assignment in assignment_lookup(draft_assignments).items()
+        if current_by_slot.get(slot_key, {}).get("client_id")
+        != assignment["client_id"]
+    }
     st.info(_draft_summary(meta, changes, draft_assignments))
 
     with st.container(key="draft_actions"):
@@ -751,7 +768,6 @@ def draft_page() -> None:
                 st.rerun()
 
     if changes:
-        st.subheader("Request")
         for change in changes:
             proposed_name = change.get("proposed_name") or change["current_name"]
             label = {
@@ -779,21 +795,23 @@ def draft_page() -> None:
         )
         st.dataframe(styled_changes, hide_index=True, use_container_width=True)
 
-    with st.expander("View full schedule comparison", expanded=False):
-        approved_tab, draft_tab = st.tabs(["Current", "New schedule"])
-        with approved_tab:
+    approved_tab, draft_tab = st.tabs(
+        ["Current", "New schedule"], default="New schedule"
+    )
+    with approved_tab:
+        render_schedule_grid(
+            current_assignments,
+            key_prefix="draft_current",
+            clickable=False,
+        )
+    with draft_tab:
+        with st.container(key="draft_proposed"):
             render_schedule_grid(
-                database.get_current_assignments(DB_PATH),
-                key_prefix="draft_current",
+                draft_assignments,
+                key_prefix="draft_new",
                 clickable=False,
+                highlighted_slots=changed_proposed_slots,
             )
-        with draft_tab:
-            with st.container(key="draft_proposed"):
-                render_schedule_grid(
-                    draft_assignments,
-                    key_prefix="draft_new",
-                    clickable=False,
-                )
 
 
 def settings_page() -> None:
