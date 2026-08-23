@@ -87,6 +87,19 @@ st.markdown(
     .st-key-draft_actions, .st-key-draft_discard_section {
         width: 100%; max-width: 38rem; margin-inline: auto;
     }
+    div[class*="st-key-draft_request_"] {
+        background: var(--blue-soft); border-radius: 9px; padding: .35rem .55rem;
+        margin-bottom: .4rem;
+    }
+    div[class*="st-key-remove_change_"] button,
+    .st-key-discard_entire_draft button,
+    .st-key-confirm_discard_entire_draft button {
+        background: var(--danger); border-color: var(--danger); color: white;
+    }
+    .st-key-draft_proposed div.stButton > button:disabled {
+        background: var(--blue-soft); border-color: #cbddeb; color: var(--blue-dark);
+        opacity: 1;
+    }
     div[data-baseweb="input"], div[data-baseweb="base-input"],
     div[data-baseweb="textarea"], div[data-baseweb="select"] > div {
         background-color: var(--panel);
@@ -550,8 +563,8 @@ def schedule_change_table() -> pd.DataFrame:
         rows.append(
             {
                 "Client": names.get(client_id, "Client"),
-                "Current": _format_slot_set(old) or "Not scheduled",
-                "Draft": _format_slot_set(new) or "Removed",
+                "Now": _format_slot_set(old) or "Not scheduled",
+                "After approval": _format_slot_set(new) or "Removed",
             }
         )
     return pd.DataFrame(rows)
@@ -565,8 +578,41 @@ def _format_slot_set(slot_keys: set[str]) -> str:
     return ", ".join(SLOT_KEY_TO_LABEL[key] for key in ordered)
 
 
+def _draft_summary(
+    meta: dict,
+    changes: list[dict],
+    draft_assignments: dict[int, list[dict]],
+) -> str:
+    added_names = [
+        change.get("proposed_name") or change["current_name"]
+        for change in changes
+        if change["change_type"] == "add"
+    ]
+    additions = ", ".join(added_names) if added_names else "No new clients"
+
+    moved_count = int(meta["moved_count"])
+    moves = (
+        "No appointments"
+        if moved_count == 0
+        else f"{moved_count} appointment{'s' if moved_count != 1 else ''}"
+    )
+
+    used_evenings = {
+        SLOT_BY_KEY[assignment["slot_key"]].day
+        for assignments in draft_assignments.values()
+        for assignment in assignments
+        if SLOT_BY_KEY[assignment["slot_key"]].block == "evening"
+    }
+    free_evenings = [day for day in DAYS if day not in used_evenings]
+    evenings = ", ".join(free_evenings) if free_evenings else "None"
+
+    return (
+        f"**Can be added:** {additions} · **Appointments that must move:** {moves} · "
+        f"**Evenings that remain free:** {evenings}"
+    )
+
+
 def draft_page() -> None:
-    st.markdown('<div class="eyebrow">Review before applying</div>', unsafe_allow_html=True)
     st.title("Draft Schedule")
     meta = database.get_draft_meta(DB_PATH)
     changes = database.list_draft_changes(DB_PATH)
@@ -575,14 +621,11 @@ def draft_page() -> None:
         st.info("There are no draft changes. The approved schedule is unchanged.")
         return
 
-    st.success(meta["category"])
-    st.write(meta["message"])
-    st.caption(
-        "All draft changes are approved together. You can remove one request or discard the entire draft first."
-    )
+    draft_assignments = database.get_draft_assignments(DB_PATH)
+    st.info(_draft_summary(meta, changes, draft_assignments))
 
     if changes:
-        st.subheader("Requested changes")
+        st.subheader("Request")
         for change in changes:
             proposed_name = change.get("proposed_name") or change["current_name"]
             label = {
@@ -590,23 +633,27 @@ def draft_page() -> None:
                 "edit": f"Edit {proposed_name}",
                 "delete": f"Delete {change['current_name']}",
             }[change["change_type"]]
-            c1, c2 = st.columns([5, 1])
-            c1.write(label)
-            if c2.button("Remove", key=f"remove_change_{change['id']}"):
-                try:
-                    show_result(service.remove_draft_change(change["id"], DB_PATH))
-                    st.rerun()
-                except Exception as exc:
-                    st.error(str(exc))
+            with st.container(key=f"draft_request_{change['id']}"):
+                c1, c2 = st.columns([5, 1])
+                c1.write(label)
+                if c2.button("Remove", key=f"remove_change_{change['id']}"):
+                    try:
+                        show_result(service.remove_draft_change(change["id"], DB_PATH))
+                        st.rerun()
+                    except Exception as exc:
+                        st.error(str(exc))
 
     changes_frame = schedule_change_table()
-    st.subheader("Appointment changes")
+    st.subheader("What will change")
     if changes_frame.empty:
         st.info("No appointment times need to change.")
     else:
-        st.dataframe(changes_frame, hide_index=True, use_container_width=True)
+        styled_changes = changes_frame.style.set_properties(
+            subset=["After approval"], background_color="#e8f1f8"
+        )
+        st.dataframe(styled_changes, hide_index=True, use_container_width=True)
 
-    approved_tab, draft_tab = st.tabs(["Approved schedule", "Draft schedule"])
+    approved_tab, draft_tab = st.tabs(["Current", "Proposed"])
     with approved_tab:
         render_schedule_grid(
             database.get_current_assignments(DB_PATH),
@@ -614,11 +661,12 @@ def draft_page() -> None:
             clickable=False,
         )
     with draft_tab:
-        render_schedule_grid(
-            database.get_draft_assignments(DB_PATH),
-            key_prefix="draft_new",
-            clickable=False,
-        )
+        with st.container(key="draft_proposed"):
+            render_schedule_grid(
+                draft_assignments,
+                key_prefix="draft_new",
+                clickable=False,
+            )
 
     st.divider()
     with st.container(key="draft_actions"):
@@ -629,7 +677,11 @@ def draft_page() -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(str(exc))
-        if a2.button("Discard entire draft", use_container_width=True):
+        if a2.button(
+            "Discard entire draft",
+            key="discard_entire_draft",
+            use_container_width=True,
+        ):
             st.session_state.confirm_discard_draft = True
 
     if st.session_state.get("confirm_discard_draft"):
@@ -638,7 +690,9 @@ def draft_page() -> None:
                 "Discard every draft change? The approved schedule will stay exactly the same."
             )
             c1, c2 = st.columns(2)
-            if c1.button("Yes, discard draft", type="primary"):
+            if c1.button(
+                "Yes, discard draft", key="confirm_discard_entire_draft"
+            ):
                 show_result(service.discard_draft(DB_PATH))
                 st.session_state.pop("confirm_discard_draft", None)
                 st.rerun()
@@ -695,9 +749,6 @@ if "page" not in st.session_state:
 st.sidebar.markdown("## Weekly Scheduler")
 st.sidebar.caption("Optimize Kriah Scheduling effortlessly")
 page = st.sidebar.radio("Go to", PAGES, key="page")
-
-if database.has_draft(DB_PATH):
-    st.sidebar.info("A draft schedule is waiting for review.")
 
 if page == "Schedule":
     schedule_page()
