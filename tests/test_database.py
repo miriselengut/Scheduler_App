@@ -8,6 +8,38 @@ import pytest
 import database
 
 
+def test_postgres_executemany_uses_cursor() -> None:
+    calls = []
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+        def executemany(self, query, params):
+            calls.append((query, params))
+
+    class FakeConnection:
+        def cursor(self):
+            return FakeCursor()
+
+    params = [(1, "SUN_1400"), (2, "MON_1400")]
+    connection = database._PostgresConnection(FakeConnection())
+
+    connection.executemany(
+        "INSERT INTO assignments (client_id, slot_key) VALUES (?, ?)", params
+    )
+
+    assert calls == [
+        (
+            "INSERT INTO assignments (client_id, slot_key) VALUES (%s, %s)",
+            params,
+        )
+    ]
+
+
 def test_fresh_database_and_defaults(tmp_path: Path) -> None:
     db_path = tmp_path / "scheduler.db"
     database.init_db(db_path)
